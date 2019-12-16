@@ -9,6 +9,8 @@ import (
 	"github.com/giantswarm/operatorkit/resource/wrapper/metricsresource"
 	"github.com/giantswarm/operatorkit/resource/wrapper/retryresource"
 
+	"github.com/giantswarm/ignition-operator/pkg/project"
+	"github.com/giantswarm/ignition-operator/service/controller/key"
 	"github.com/giantswarm/ignition-operator/service/controller/resource/test"
 )
 
@@ -58,6 +60,14 @@ func newIgnitionResourceSet(config ignitionResourceSetConfig) (*controller.Resou
 	}
 
 	handlesFunc := func(obj interface{}) bool {
+		cr, err := key.ToIgnition(obj)
+		if err != nil {
+			return false
+		}
+
+		if key.OperatorVersion(&cr) == project.BundleVersion() {
+			return true
+		}
 
 		return false
 	}

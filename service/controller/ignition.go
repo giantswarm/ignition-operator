@@ -40,8 +40,8 @@ func NewIgnition(config IgnitionConfig) (*Ignition, error) {
 			},
 
 			// Name is used to compute finalizer names. This here results in something
-			// like operatorkit.giantswarm.io/ignition-operator-todo-controller.
-			Name: project.Name() + "-todo-controller",
+			// like operatorkit.giantswarm.io/ignition-operator-ignition-controller.
+			Name: project.Name() + "-ignition-controller",
 		}
 
 		operatorkitController, err = controller.New(c)
