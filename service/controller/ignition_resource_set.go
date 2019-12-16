@@ -12,12 +12,12 @@ import (
 	"github.com/giantswarm/ignition-operator/service/controller/resource/test"
 )
 
-type todoResourceSetConfig struct {
+type ignitionResourceSetConfig struct {
 	K8sClient k8sclient.Interface
 	Logger    micrologger.Logger
 }
 
-func newTODOResourceSet(config todoResourceSetConfig) (*controller.ResourceSet, error) {
+func newIgnitionResourceSet(config ignitionResourceSetConfig) (*controller.ResourceSet, error) {
 	var err error
 
 	var testResource resource.Interface
