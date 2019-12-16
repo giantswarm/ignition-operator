@@ -11,19 +11,19 @@ import (
 	"github.com/giantswarm/ignition-operator/pkg/project"
 )
 
-type TODOConfig struct {
+type IgnitionConfig struct {
 	K8sClient k8sclient.Interface
 	Logger    micrologger.Logger
 }
 
-type TODO struct {
+type Ignition struct {
 	*controller.Controller
 }
 
-func NewTODO(config TODOConfig) (*TODO, error) {
+func NewIgnition(config IgnitionConfig) (*Ignition, error) {
 	var err error
 
-	resourceSets, err := newTODOResourceSets(config)
+	resourceSets, err := newIgnitionResourceSets(config)
 	if err != nil {
 		return nil, microerror.Mask(err)
 	}
@@ -49,24 +49,24 @@ func NewTODO(config TODOConfig) (*TODO, error) {
 		}
 	}
 
-	c := &TODO{
+	c := &Ignition{
 		Controller: operatorkitController,
 	}
 
 	return c, nil
 }
 
-func newTODOResourceSets(config TODOConfig) ([]*controller.ResourceSet, error) {
+func newIgnitionResourceSets(config IgnitionConfig) ([]*controller.ResourceSet, error) {
 	var err error
 
 	var resourceSet *controller.ResourceSet
 	{
-		c := todoResourceSetConfig{
+		c := ignitionResourceSetConfig{
 			K8sClient: config.K8sClient,
 			Logger:    config.Logger,
 		}
 
-		resourceSet, err = newTODOResourceSet(c)
+		resourceSet, err = newIgnitionResourceSet(c)
 		if err != nil {
 			return nil, microerror.Mask(err)
 		}
