@@ -4,11 +4,22 @@ metadata:
   name: {{ tpl .Values.resource.default.name  . }}
 rules:
   - apiGroups:
-      - ""
+      - core.giantswarm.io
     resources:
-      - pods
+      - ignitions
     verbs:
-      - "*"
+      - get
+      - list
+      - patch
+      - watch
+  - apiGroups:
+      - application.giantswarm.io
+    resources:
+      - apps/status
+    verbs:
+      - create
+      - patch
+      - update
   - apiGroups:
       - ""
     resources:
