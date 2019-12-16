@@ -32,6 +32,10 @@ required = [
   branch = "master"
   name = "github.com/docker/distribution"
 
+[[override]]
+  branch = "Add-ignition-type"
+  name = "github.com/giantswarm/apiextensions"
+
 [[constraint]]
   branch = "master"
   name = "github.com/giantswarm/exporterkit"
