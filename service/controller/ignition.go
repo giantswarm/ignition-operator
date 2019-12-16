@@ -31,6 +31,7 @@ func NewIgnition(config IgnitionConfig) (*Ignition, error) {
 	var operatorkitController *controller.Controller
 	{
 		c := controller.Config{
+			CRD:          v1alpha1.NewIgnitionCRD(),
 			K8sClient:    config.K8sClient,
 			Logger:       config.Logger,
 			ResourceSets: resourceSets,
