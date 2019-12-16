@@ -1,4 +1,4 @@
 *.swp
 TODO
-ignition-operator
+/ignition-operator
 !vendor/**
