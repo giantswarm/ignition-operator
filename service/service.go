@@ -18,7 +18,6 @@ import (
 
 	"github.com/giantswarm/ignition-operator/flag"
 	"github.com/giantswarm/ignition-operator/pkg/project"
-	"github.com/giantswarm/ignition-operator/service/collector"
 	"github.com/giantswarm/ignition-operator/service/controller"
 )
 
@@ -35,7 +34,6 @@ type Service struct {
 
 	bootOnce           sync.Once
 	ignitionController *controller.Ignition
-	operatorCollector  *collector.Set
 }
 
 // New creates a new configured service object.
@@ -107,19 +105,6 @@ func New(config Config) (*Service, error) {
 		}
 	}
 
-	var operatorCollector *collector.Set
-	{
-		c := collector.SetConfig{
-			K8sClient: k8sClient.K8sClient(),
-			Logger:    config.Logger,
-		}
-
-		operatorCollector, err = collector.NewSet(c)
-		if err != nil {
-			return nil, microerror.Mask(err)
-		}
-	}
-
 	var versionService *version.Service
 	{
 		c := version.Config{
@@ -142,7 +127,6 @@ func New(config Config) (*Service, error) {
 
 		bootOnce:           sync.Once{},
 		ignitionController: ignitionController,
-		operatorCollector:  operatorCollector,
 	}
 
 	return s, nil
@@ -150,8 +134,6 @@ func New(config Config) (*Service, error) {
 
 func (s *Service) Boot(ctx context.Context) {
 	s.bootOnce.Do(func() {
-		go s.operatorCollector.Boot(ctx)
-
 		go s.ignitionController.Boot(ctx)
 	})
 }
