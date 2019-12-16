@@ -104,3 +104,15 @@ workflows:
           filters:
             tags:
               only: /^v.*/
+
+      - architect/push-to-app-collection:
+          name: app-collection
+          app_name: "ignition-operator"
+          app_collection_repo: "operator-week-app-collection"
+          requires:
+            - push-ignition-operator-to-app-catalog
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v.*/
