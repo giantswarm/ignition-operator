@@ -1,0 +1,7 @@
+[Unit]
+Description=Wait for etcd and k8s API domains to be available
+[Service]
+Type=oneshot
+ExecStart=/opt/wait-for-domains
+[Install]
+WantedBy=multi-user.target
