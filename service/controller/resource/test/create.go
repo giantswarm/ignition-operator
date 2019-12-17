@@ -2,21 +2,15 @@ package test
 
 import (
 	"context"
-	"io/ioutil"
 
 	"github.com/giantswarm/microerror"
+	"github.com/shurcooL/httpfs/vfsutil"
 
 	"github.com/giantswarm/ignition-operator/data"
 )
 
 func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
-	rc, err := data.Assets.Open("master_template.yaml")
-	if err != nil {
-		return microerror.Mask(err)
-	}
-	defer rc.Close()
-
-	b, err := ioutil.ReadAll(rc)
+	b, err := vfsutil.ReadFile(data.Assets, "master_template.yaml")
 	if err != nil {
 		return microerror.Mask(err)
 	}

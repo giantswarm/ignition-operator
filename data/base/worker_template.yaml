@@ -28,168 +28,50 @@ systemd:
   - name: kubereserved.slice
     path: /etc/systemd/system/kubereserved.slice
     content: |
-      [Unit]
-      Description=Limited resources slice for Kubernetes services
-      Documentation=man:systemd.special(7)
-      DefaultDependencies=no
-      Before=slices.target
-      Requires=-.slice
-      After=-.slice
+      {{  index .Units "kubereserved.slice" | indent 6}}
   # End - manual management for cgroup structure
-  {{range .Extension.Units}}
-  - name: {{.Metadata.Name}}
-    enabled: {{.Metadata.Enabled}}
-    contents: |
-      {{range .Content}}{{.}}
-      {{end}}{{end}}
   - name: set-certs-group-owner-permission-giantswarm.service
     enabled: true
     contents: |
-      [Unit]
-      Description=Change group owner for certificates to giantswarm
-      Wants=k8s-kubelet.service k8s-setup-network-env.service
-      After=k8s-kubelet.service k8s-setup-network-env.service
-      [Service]
-      Type=oneshot
-      ExecStart=/bin/sh -c "find /etc/kubernetes/ssl -name '*.pem' -print | xargs -i  sh -c 'chown root:giantswarm {} && chmod 640 {}'"
-      [Install]
-      WantedBy=multi-user.target
+      {{  index .Units "set-certs-group-owner-permission-giantswarm.service" | indent 6}}
   - name: wait-for-domains.service
     enabled: true
     contents: |
-      [Unit]
-      Description=Wait for etcd and k8s API domains to be available
-      [Service]
-      Type=oneshot
-      ExecStart=/opt/wait-for-domains
-      [Install]
-      WantedBy=multi-user.target
+      {{  index .Units "wait-for-domains.service" | indent 6}}
   - name: os-hardeing.service
     enabled: true
     contents: |
-      [Unit]
-      Description=Apply os hardening
-      [Service]
-      Type=oneshot
-      ExecStartPre=-/bin/bash -c "gpasswd -d core rkt; gpasswd -d core docker; gpasswd -d core wheel"
-      ExecStartPre=/bin/bash -c "until [ -f '/etc/sysctl.d/hardening.conf' ]; do echo Waiting for sysctl file; sleep 1s;done;"
-      ExecStart=/usr/sbin/sysctl -p /etc/sysctl.d/hardening.conf
-      [Install]
-      WantedBy=multi-user.target
+      {{  index .Units "os-hardeing.service" | indent 6}}
   - name: k8s-setup-kubelet-config.service
     enabled: true
     contents: |
-      [Unit]
-      Description=k8s-setup-kubelet-config Service
-      After=k8s-setup-network-env.service docker.service
-      Requires=k8s-setup-network-env.service docker.service
-      [Service]
-      Type=oneshot
-      RemainAfterExit=yes
-      TimeoutStartSec=0
-      EnvironmentFile=/etc/network-environment
-      ExecStart=/bin/bash -c '/usr/bin/envsubst </etc/kubernetes/config/kubelet.yaml.tmpl >/etc/kubernetes/config/kubelet.yaml'
-      [Install]
-      WantedBy=multi-user.target
+      {{  index .Units "k8s-setup-kubelet-config.service" | indent 6}}
   - name: containerd.service
     enabled: true
     contents: |
     dropins:
       - name: 10-change-cgroup.conf
         contents: |
-          [Service]
-          CPUAccounting=true
-          MemoryAccounting=true
-          Slice=kubereserved.slice
+          {{  index .Units "containerd.service" | indent 10}}
   - name: docker.service
     enabled: true
     contents: |
     dropins:
       - name: 10-giantswarm-extra-args.conf
         contents: |
-          [Service]
-          CPUAccounting=true
-          MemoryAccounting=true
-          Slice=kubereserved.slice
-          Environment="DOCKER_CGROUPS=--exec-opt native.cgroupdriver=cgroupfs --cgroup-parent=/kubereserved.slice --log-opt max-size=25m --log-opt max-file=2 --log-opt labels=io.kubernetes.container.hash,io.kubernetes.container.name,io.kubernetes.pod.name,io.kubernetes.pod.namespace,io.kubernetes.pod.uid"
-          Environment="DOCKER_OPT_BIP=--bip={{.Cluster.Docker.Daemon.CIDR}}"
-          Environment="DOCKER_OPTS=--live-restore --icc=false --userland-proxy=false"
+          {{  index .Units "10-giantswarm-extra-args.conf" | indent 10}}
   - name: k8s-setup-network-env.service
     enabled: true
     contents: |
-      [Unit]
-      Description=k8s-setup-network-env Service
-      Wants=network.target docker.service wait-for-domains.service
-      After=network.target docker.service wait-for-domains.service
-      [Service]
-      Type=oneshot
-      TimeoutStartSec=0
-      Environment="IMAGE={{.Cluster.Kubernetes.NetworkSetup.Docker.Image}}"
-      Environment="NAME=%p.service"
-      ExecStartPre=/usr/bin/mkdir -p /opt/bin/
-      ExecStartPre=/usr/bin/docker pull $IMAGE
-      ExecStartPre=-/usr/bin/docker stop -t 10 $NAME
-      ExecStartPre=-/usr/bin/docker rm -f $NAME
-      ExecStart=/usr/bin/docker run --rm --net=host -v /etc:/etc --name $NAME $IMAGE
-      ExecStop=-/usr/bin/docker stop -t 10 $NAME
-      ExecStopPost=-/usr/bin/docker rm -f $NAME
-      [Install]
-      WantedBy=multi-user.target
+      {{  index .Units "k8s-setup-network-env.service" | indent 6}}
   - name: k8s-setup-download-hyperkube.service
     enabled: true
     contents: |
-      [Unit]
-      Description=Pulls hyperkube binary from image to local FS
-      After=docker.service
-      Requires=docker.service
-      [Service]
-      Type=oneshot
-      RemainAfterExit=yes
-      TimeoutStartSec=0
-      Environment="IMAGE={{ .RegistryDomain }}/{{ .Images.Kubernetes }}"
-      Environment="NAME=%p.service"
-      ExecStartPre=/bin/bash -c "/usr/bin/docker create --name $NAME $IMAGE"
-      ExecStart=/bin/bash -c "/usr/bin/docker cp $NAME:/hyperkube /opt/bin/hyperkube"
-      ExecStartPost=/bin/bash -c "/usr/bin/docker rm $NAME"
-      [Install]
-      WantedBy=multi-user.target
+      {{  index .Units "k8s-setup-download-hyperkube.service" | indent 6}}
   - name: k8s-kubelet.service
     enabled: true
     contents: |
-      [Unit]
-      Wants=k8s-setup-network-env.service k8s-setup-kubelet-config.service k8s-setup-download-hyperkube.service
-      After=k8s-setup-network-env.service k8s-setup-kubelet-config.service k8s-setup-download-hyperkube.service
-      Description=k8s-kubelet
-      StartLimitIntervalSec=0
-      [Service]
-      TimeoutStartSec=300
-      Restart=always
-      RestartSec=0
-      TimeoutStopSec=10
-      Slice=kubereserved.slice
-      CPUAccounting=true
-      MemoryAccounting=true
-      Environment="ETCD_CA_CERT_FILE=/etc/kubernetes/ssl/etcd/client-ca.pem"
-      Environment="ETCD_CERT_FILE=/etc/kubernetes/ssl/etcd/client-crt.pem"
-      Environment="ETCD_KEY_FILE=/etc/kubernetes/ssl/etcd/client-key.pem"
-      EnvironmentFile=/etc/network-environment
-      ExecStart=/opt/bin/hyperkube kubelet \
-        {{ range .Hyperkube.Kubelet.Docker.CommandExtraArgs -}}
-        {{ . }} \
-        {{ end -}}
-        --node-ip=${DEFAULT_IPV4} \
-        --config=/etc/kubernetes/config/kubelet.yaml \
-        --enable-server \
-        --logtostderr=true \
-        --cloud-provider={{.Cluster.Kubernetes.CloudProvider}} \
-        --image-pull-progress-deadline={{.ImagePullProgressDeadline}} \
-        --network-plugin=cni \
-        --register-node=true \
-        --kubeconfig=/etc/kubernetes/kubeconfig/kubelet.yaml \
-        --node-labels="node.kubernetes.io/worker,node-role.kubernetes.io/worker,kubernetes.io/role=worker,role=worker,ip=${DEFAULT_IPV4},{{.Cluster.Kubernetes.Kubelet.Labels}}" \
-        --v=2
-      [Install]
-      WantedBy=multi-user.target
+      {{  index .Units "k8s-kubelet.service" | indent 6}}
   - name: etcd2.service
     enabled: false
     mask: true
@@ -302,7 +184,3 @@ storage:
         compression: gzip
         {{end}}
     {{ end -}}
-
-{{ range .Extension.VerbatimSections }}
-{{ .Content }}
-{{ end }}

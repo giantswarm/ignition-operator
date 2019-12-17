@@ -1,0 +1,51 @@
+[Unit]
+Description=etcd3
+Wants=k8s-setup-network-env.service
+After=k8s-setup-network-env.service
+Conflicts=etcd.service etcd2.service
+StartLimitIntervalSec=0
+[Service]
+Restart=always
+RestartSec=0
+TimeoutStopSec=10
+LimitNOFILE=40000
+CPUAccounting=true
+MemoryAccounting=true
+Slice=kubereserved.slice
+Environment=IMAGE={{ .RegistryDomain }}/{{ .Images.Etcd }}
+Environment=NAME=%p.service
+EnvironmentFile=/etc/network-environment
+ExecStartPre=-/usr/bin/docker stop  $NAME
+ExecStartPre=-/usr/bin/docker rm  $NAME
+ExecStartPre=-/usr/bin/docker pull $IMAGE
+ExecStartPre=/bin/bash -c "while [ ! -f /etc/kubernetes/ssl/etcd/server-ca.pem ]; do echo 'Waiting for /etc/kubernetes/ssl/etcd/server-ca.pem to be written' && sleep 1; done"
+ExecStartPre=/bin/bash -c "while [ ! -f /etc/kubernetes/ssl/etcd/server-crt.pem ]; do echo 'Waiting for /etc/kubernetes/ssl/etcd/server-crt.pem to be written' && sleep 1; done"
+ExecStartPre=/bin/bash -c "while [ ! -f /etc/kubernetes/ssl/etcd/server-key.pem ]; do echo 'Waiting for /etc/kubernetes/ssl/etcd/server-key.pem to be written' && sleep 1; done"
+ExecStart=/usr/bin/docker run \
+    -v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt \
+    -v /etc/kubernetes/ssl/etcd/:/etc/etcd \
+    -v /var/lib/etcd/:/var/lib/etcd  \
+    --net=host  \
+    --name $NAME \
+    $IMAGE \
+    etcd \
+    --name etcd0 \
+    --trusted-ca-file /etc/etcd/server-ca.pem \
+    --cert-file /etc/etcd/server-crt.pem \
+    --key-file /etc/etcd/server-key.pem\
+    --client-cert-auth=true \
+    --peer-trusted-ca-file /etc/etcd/server-ca.pem \
+    --peer-cert-file /etc/etcd/server-crt.pem \
+    --peer-key-file /etc/etcd/server-key.pem \
+    --peer-client-cert-auth=true \
+    --advertise-client-urls=https://{{ .Cluster.Etcd.Domain }}:{{ .EtcdPort }} \
+    --initial-advertise-peer-urls=https://127.0.0.1:2380 \
+    --listen-client-urls=https://0.0.0.0:2379 \
+    --listen-peer-urls=https://${DEFAULT_IPV4}:2380 \
+    --initial-cluster-token k8s-etcd-cluster \
+    --initial-cluster etcd0=https://127.0.0.1:2380 \
+    --initial-cluster-state new \
+    --data-dir=/var/lib/etcd \
+    --enable-v2
+[Install]
+WantedBy=multi-user.target

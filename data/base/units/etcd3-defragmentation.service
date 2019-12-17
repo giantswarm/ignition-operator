@@ -1,0 +1,29 @@
+[Unit]
+Description=etcd defragmentation job
+After=docker.service etcd3.service
+Requires=docker.service etcd3.service
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/network-environment
+Environment=IMAGE={{ .RegistryDomain }}/{{ .Images.Etcd }}
+Environment=NAME=%p.service
+ExecStartPre=-/usr/bin/docker stop  $NAME
+ExecStartPre=-/usr/bin/docker rm  $NAME
+ExecStartPre=-/usr/bin/docker pull $IMAGE
+ExecStart=/usr/bin/docker run \
+  -v /etc/kubernetes/ssl/etcd/:/etc/etcd \
+  --net=host  \
+  -e ETCDCTL_API=3 \
+  --name $NAME \
+  $IMAGE \
+  etcdctl \
+  --endpoints https://127.0.0.1:2379 \
+  --cacert /etc/etcd/server-ca.pem \
+  --cert /etc/etcd/server-crt.pem \
+  --key /etc/etcd/server-key.pem \
+  defrag \
+  --command-timeout=60s \
+  --dial-timeout=60s \
+  --keepalive-timeout=25s
+[Install]
+WantedBy=multi-user.target
