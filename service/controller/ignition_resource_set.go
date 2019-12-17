@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"context"
+
 	"github.com/giantswarm/k8sclient"
 	"github.com/giantswarm/microerror"
 	"github.com/giantswarm/micrologger"
@@ -10,8 +12,11 @@ import (
 	"github.com/giantswarm/operatorkit/resource/wrapper/retryresource"
 
 	"github.com/giantswarm/ignition-operator/pkg/project"
+	"github.com/giantswarm/ignition-operator/service/controller/controllercontext"
 	"github.com/giantswarm/ignition-operator/service/controller/key"
-	"github.com/giantswarm/ignition-operator/service/controller/resource/test"
+	"github.com/giantswarm/ignition-operator/service/controller/resource/encryptionkey"
+	"github.com/giantswarm/ignition-operator/service/controller/resource/templatefiles"
+	"github.com/giantswarm/ignition-operator/service/controller/resource/templateunits"
 )
 
 type ignitionResourceSetConfig struct {
@@ -22,21 +27,49 @@ type ignitionResourceSetConfig struct {
 func newIgnitionResourceSet(config ignitionResourceSetConfig) (*controller.ResourceSet, error) {
 	var err error
 
-	var testResource resource.Interface
+	var encryptionkeyResource resource.Interface
 	{
-		c := test.Config{
+		c := encryptionkey.Config{
 			K8sClient: config.K8sClient,
 			Logger:    config.Logger,
 		}
 
-		testResource, err = test.New(c)
+		encryptionkeyResource, err = encryptionkey.New(c)
+		if err != nil {
+			return nil, microerror.Mask(err)
+		}
+	}
+
+	var templatefilesResource resource.Interface
+	{
+		c := templatefiles.Config{
+			K8sClient: config.K8sClient,
+			Logger:    config.Logger,
+		}
+
+		templatefilesResource, err = templatefiles.New(c)
+		if err != nil {
+			return nil, microerror.Mask(err)
+		}
+	}
+
+	var templateunitsResource resource.Interface
+	{
+		c := templateunits.Config{
+			K8sClient: config.K8sClient,
+			Logger:    config.Logger,
+		}
+
+		templateunitsResource, err = templateunits.New(c)
 		if err != nil {
 			return nil, microerror.Mask(err)
 		}
 	}
 
 	resources := []resource.Interface{
-		testResource,
+		encryptionkeyResource,
+		templatefilesResource,
+		templateunitsResource,
 	}
 
 	{
@@ -72,10 +105,15 @@ func newIgnitionResourceSet(config ignitionResourceSetConfig) (*controller.Resou
 		return false
 	}
 
+	initCtxFunc := func(ctx context.Context, obj interface{}) (context.Context, error) {
+		return controllercontext.NewContext(ctx, controllercontext.Context{}), nil
+	}
+
 	var resourceSet *controller.ResourceSet
 	{
 		c := controller.ResourceSetConfig{
 			Handles:   handlesFunc,
+			InitCtx:   initCtxFunc,
 			Logger:    config.Logger,
 			Resources: resources,
 		}

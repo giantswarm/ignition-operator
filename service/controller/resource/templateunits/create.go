@@ -1,4 +1,4 @@
-package test
+package templateunits
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 )
 
 func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
-	b, err := vfsutil.ReadFile(data.Assets, "master_template.yaml")
+	b, err := vfsutil.ReadFile(data.Assets, "worker_template.yaml")
 	if err != nil {
 		return microerror.Mask(err)
 	}
