@@ -27,18 +27,9 @@ required = [
 ]
 
 
-
-[[constraint]]
-  branch = "master"
-  name = "github.com/docker/distribution"
-
 [[override]]
   branch = "Add-ignition-type"
   name = "github.com/giantswarm/apiextensions"
-
-[[constraint]]
-  branch = "master"
-  name = "github.com/giantswarm/exporterkit"
 
 [[constraint]]
   branch = "master"
@@ -58,15 +49,7 @@ required = [
 
 [[constraint]]
   name = "github.com/giantswarm/operatorkit"
-  revision = "5d098618662e74384f52bf064fe3588436873eb2"
-
-[[constraint]]
-  name = "k8s.io/api"
-  version = "kubernetes-1.16.3"
-
-[[constraint]]
-  name = "k8s.io/apiserver"
-  version = "kubernetes-1.16.3"
+  revision = "master"
 
 [[constraint]]
   name = "k8s.io/client-go"
@@ -81,32 +64,12 @@ required = [
   version = "kubernetes-1.16.3"
 
 [[override]]
-  name = "k8s.io/cli-runtime"
-  version = "kubernetes-1.16.3"
-
-[[override]]
-  name = "k8s.io/component-base"
-  version = "kubernetes-1.16.3"
-
-[[override]]
-  name = "k8s.io/kubectl"
-  version = "kubernetes-1.16.3"
-
-[[override]]
   name = "k8s.io/kubernetes"
   version = "v1.16.3"
 
 [[override]]
-  branch = "master"
-  name = "github.com/ghodss/yaml"
-
-[[override]]
-  name = "github.com/russross/blackfriday"
-  version = "v1.5.2"
-
-[[override]]
-source = "gopkg.in/fsnotify/fsnotify.v1"
-name = "gopkg.in/fsnotify.v1"
+  source = "gopkg.in/fsnotify/fsnotify.v1"
+  name = "gopkg.in/fsnotify.v1"
 
 
 

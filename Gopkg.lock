@@ -34,15 +34,15 @@
   version = "v1.1.1"
 
 [[projects]]
-  branch = "master"
-  digest = "1:4c7d169280debf9f36b84a0f682094889cccc5dc0db8657f9cffc93b21975a57"
+  digest = "1:4ddc17aeaa82cb18c5f0a25d7c253a10682f518f4b2558a82869506eec223d76"
   name = "github.com/docker/distribution"
   packages = [
     "digestset",
     "reference",
   ]
   pruneopts = "UT"
-  revision = "a8371794149d1d95f1e846744b05c87f2f825e5a"
+  revision = "2461543d988979529609e8cb6fca9ca190dc48da"
+  version = "v2.7.1"
 
 [[projects]]
   digest = "1:ac425d784b13d49b37a5bbed3ce022677f8f3073b216f05d6adcb9303e27fa0f"
@@ -98,14 +98,6 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "4dd4911251929a0ac4c4f3d8c4bda482a9e09f30"
-
-[[projects]]
-  branch = "master"
-  digest = "1:5164d17414266145c643e4997dacbc32e6e1ad552c3c70a78837f64d9a0140ea"
-  name = "github.com/giantswarm/exporterkit"
-  packages = ["collector"]
-  pruneopts = "UT"
-  revision = "9749deade60f7624620aa7158a4f38c87ea23795"
 
 [[projects]]
   branch = "master"
@@ -176,7 +168,7 @@
   revision = "d866337f739365a54de5924b8a7b29df17693ef8"
 
 [[projects]]
-  digest = "1:e3dcfca96177f8b713e76e0f15660b33afc5de3110b2cf6c0a801dbaac904a9f"
+  digest = "1:277354c3c5bc503873e5acc97e44c8f226a88c5d97d2074216c7b8c41feff049"
   name = "github.com/giantswarm/operatorkit"
   packages = [
     "controller",
@@ -194,7 +186,7 @@
     "resource/wrapper/retryresource",
   ]
   pruneopts = "UT"
-  revision = "5d098618662e74384f52bf064fe3588436873eb2"
+  revision = "master"
 
 [[projects]]
   branch = "master"
@@ -206,11 +198,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:90fda7152f6ded9c45d67bee5f23f2d8f148eb15672f30030c095e08eccf02b0"
+  digest = "1:62f331bfc5c1f966a4c289170927241ce4eb5d801e6f488962376afaf370654a"
   name = "github.com/giantswarm/versionbundle"
   packages = ["."]
   pruneopts = "UT"
-  revision = "be95231628aed039183214a0e337bfe621e3072a"
+  revision = "0e21f30ed4e6d96dd8bc1a7f1f57610f445f2620"
 
 [[projects]]
   digest = "1:83a37f3bd4ccd13469775ef771e943e6c7cfaba6926decff6c83135e56512f08"
@@ -866,8 +858,8 @@
     "pkg/endpoints/request",
   ]
   pruneopts = "UT"
-  revision = "9ca1dc5866829af144ff306b7d13fbab2157a818"
-  version = "kubernetes-1.16.3"
+  revision = "45540e023360193661c0ec8e5afd746edf45ec83"
+  version = "v0.16.4"
 
 [[projects]]
   digest = "1:4b5220cc88247d3d12d33fdd5bea87b57995722e9070b3bc8ecc5de539f5b6c6"
@@ -976,7 +968,7 @@
     "trace",
   ]
   pruneopts = "UT"
-  revision = "6ca3b61696b65b0e81f1a39b4937fc2d2994ed6a"
+  revision = "9e5e9d854fcc5cc704f00d68fa057146e8c4ad26"
 
 [[projects]]
   digest = "1:8053263951e435c10bfb257f59063caafdb5f7de5ee35336383c84949bb84a25"
@@ -1027,7 +1019,6 @@
   input-imports = [
     "github.com/docker/distribution/reference",
     "github.com/giantswarm/apiextensions/pkg/apis/core/v1alpha1",
-    "github.com/giantswarm/exporterkit/collector",
     "github.com/giantswarm/k8sclient",
     "github.com/giantswarm/k8sclient/k8srestconfig",
     "github.com/giantswarm/microendpoint/endpoint/healthz",
@@ -1047,7 +1038,6 @@
     "github.com/spf13/viper",
     "k8s.io/apimachinery/pkg/runtime",
     "k8s.io/apiserver/pkg/endpoints/request",
-    "k8s.io/client-go/kubernetes",
     "k8s.io/client-go/rest",
   ]
   solver-name = "gps-cdcl"
