@@ -36,7 +36,10 @@ func Test_Controller_Resource_Templatefiles_Renderfiles(t *testing.T) {
 			ccSpec: controllercontext.ContextSpec{
 				BaseDomain: "someshit",
 				Etcd: controllercontext.ContextSpecEtcd{
-					Domain: "abcd",
+					Domain: "abc",
+				},
+				SSO: controllercontext.ContextSpecSSO{
+					PublicKey: "some secret",
 				},
 			},
 		},

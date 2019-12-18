@@ -258,8 +258,8 @@ conf/sshd_config: |
   LoginGraceTime 60
   AllowTcpForwarding no
   AllowAgentForwarding no
-conf/trusted-user-ca-keys.pem: |2+
-
+conf/trusted-user-ca-keys.pem: |
+  some secret
 conf/wait-for-domains: |
   #!/bin/bash
   domains="abc  quay.io"
