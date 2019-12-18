@@ -1,4 +1,4 @@
-package test
+package templatefiles
 
 import (
 	"github.com/giantswarm/microerror"
