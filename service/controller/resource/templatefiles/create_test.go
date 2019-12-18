@@ -38,6 +38,12 @@ func Test_Controller_Resource_Templatefiles_Renderfiles(t *testing.T) {
 				Etcd: controllercontext.ContextSpecEtcd{
 					Domain: "abc",
 				},
+				Kubernetes: controllercontext.ContextSpecKubernetes{
+					DNS: controllercontext.ContextSpecKubernetesDNS{
+						IP: "k8sdnsIP",
+					},
+					Domain: "k8sdomain",
+				},
 				SSO: controllercontext.ContextSpecSSO{
 					PublicKey: "some secret",
 				},

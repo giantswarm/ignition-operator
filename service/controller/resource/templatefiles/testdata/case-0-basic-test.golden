@@ -281,28 +281,81 @@ config/kube-proxy.yaml: |
   resourceContainer: /kube-proxy
   clusterCIDR: /
   metricsBindAddress: 0.0.0.0:10249
-config/kubelet-master.yaml.tmpl: "kind: KubeletConfiguration\napiVersion: kubelet.config.k8s.io/v1beta1\naddress:
-  ${DEFAULT_IPV4}\nport: 10250\nhealthzBindAddress: ${DEFAULT_IPV4}\nhealthzPort:
-  10248\nclusterDNS:\n  - \nclusterDomain: \nstaticPodPath: /etc/kubernetes/manifests\nevictionSoft:\n
-  \ memory.available: \"500Mi\"\nevictionHard:\n  memory.available: \"200Mi\"\n  imagefs.available:
-  \"15%\"\nevictionSoftGracePeriod:\n  memory.available: \"5s\"\nevictionMaxPodGracePeriod:
-  60\nkubeReserved:\n  cpu: 350m\n  memory: 1280Mi\n  ephemeral-storage: 1024Mi\nkubeReservedCgroup:
-  /kubereserved.slice\nruntimeCgroups: /kubereserved.slice\nsystemReserved:\n  cpu:
-  250m\n  memory: 384Mi\nsystemReservedCgroup: /system.slice\nauthentication:\n  anonymous:\n
-  \   enabled: true # Defaults to false as of 1.10\n  webhook:\n    enabled: false
-  # Deafults to true as of 1.10\nauthorization:\n  mode: AlwaysAllow # Deafults to
-  webhook as of 1.10\nfeatureGates:\n  TTLAfterFinished: true\n"
-config/kubelet-worker.yaml.tmpl: "kind: KubeletConfiguration\napiVersion: kubelet.config.k8s.io/v1beta1\naddress:
-  ${DEFAULT_IPV4}\nport: 10250\nhealthzBindAddress: ${DEFAULT_IPV4}\nhealthzPort:
-  10248\nclusterDNS:\n  - \nclusterDomain: \nevictionSoft:\n  memory.available: \"500Mi\"\nevictionHard:\n
-  \ memory.available: \"200Mi\"\n  imagefs.available: \"15%\"\nevictionSoftGracePeriod:\n
-  \ memory.available: \"5s\"\nevictionMaxPodGracePeriod: 60\nkubeReserved:\n  cpu:
-  250m\n  memory: 768Mi\n  ephemeral-storage: 1024Mi\nkubeReservedCgroup: /kubereserved.slice\nruntimeCgroups:
-  /kubereserved.slice\nsystemReserved:\n  cpu: 250m\n  memory: 384Mi\nsystemReservedCgroup:
-  /system.slice\nauthentication:\n  anonymous:\n    enabled: true # Defaults to false
-  as of 1.10\n  webhook:\n    enabled: false # Deafults to true as of 1.10\nauthorization:\n
-  \ mode: AlwaysAllow # Deafults to webhook as of 1.10\nfeatureGates:\n  TTLAfterFinished:
-  true\n"
+config/kubelet-master.yaml.tmpl: |
+  kind: KubeletConfiguration
+  apiVersion: kubelet.config.k8s.io/v1beta1
+  address: ${DEFAULT_IPV4}
+  port: 10250
+  healthzBindAddress: ${DEFAULT_IPV4}
+  healthzPort: 10248
+  clusterDNS:
+    - k8sdnsIP
+  clusterDomain: k8sdomain
+  staticPodPath: /etc/kubernetes/manifests
+  evictionSoft:
+    memory.available: "500Mi"
+  evictionHard:
+    memory.available: "200Mi"
+    imagefs.available: "15%"
+  evictionSoftGracePeriod:
+    memory.available: "5s"
+  evictionMaxPodGracePeriod: 60
+  kubeReserved:
+    cpu: 350m
+    memory: 1280Mi
+    ephemeral-storage: 1024Mi
+  kubeReservedCgroup: /kubereserved.slice
+  runtimeCgroups: /kubereserved.slice
+  systemReserved:
+    cpu: 250m
+    memory: 384Mi
+  systemReservedCgroup: /system.slice
+  authentication:
+    anonymous:
+      enabled: true # Defaults to false as of 1.10
+    webhook:
+      enabled: false # Deafults to true as of 1.10
+  authorization:
+    mode: AlwaysAllow # Deafults to webhook as of 1.10
+  featureGates:
+    TTLAfterFinished: true
+config/kubelet-worker.yaml.tmpl: |
+  kind: KubeletConfiguration
+  apiVersion: kubelet.config.k8s.io/v1beta1
+  address: ${DEFAULT_IPV4}
+  port: 10250
+  healthzBindAddress: ${DEFAULT_IPV4}
+  healthzPort: 10248
+  clusterDNS:
+    - k8sdnsIP
+  clusterDomain: k8sdomain
+  evictionSoft:
+    memory.available: "500Mi"
+  evictionHard:
+    memory.available: "200Mi"
+    imagefs.available: "15%"
+  evictionSoftGracePeriod:
+    memory.available: "5s"
+  evictionMaxPodGracePeriod: 60
+  kubeReserved:
+    cpu: 250m
+    memory: 768Mi
+    ephemeral-storage: 1024Mi
+  kubeReservedCgroup: /kubereserved.slice
+  runtimeCgroups: /kubereserved.slice
+  systemReserved:
+    cpu: 250m
+    memory: 384Mi
+  systemReservedCgroup: /system.slice
+  authentication:
+    anonymous:
+      enabled: true # Defaults to false as of 1.10
+    webhook:
+      enabled: false # Deafults to true as of 1.10
+  authorization:
+    mode: AlwaysAllow # Deafults to webhook as of 1.10
+  featureGates:
+    TTLAfterFinished: true
 config/scheduler.yaml: |
   kind: KubeSchedulerConfiguration
   algorithmSource:
