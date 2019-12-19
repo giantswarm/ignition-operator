@@ -1218,9 +1218,18 @@ k8s-resource/ingress-controller-svc.yaml: |
       targetPort: 443
     selector:
       k8s-app: nginx-ingress-controller
-k8s-resource/k8s-encryption-config.yaml: "kind: EncryptionConfiguration\napiVersion:
-  apiserver.config.k8s.io/v1\nresources:\n  - resources:\n    - secrets\n    providers:\n
-  \   - aescbc:\n        keys:\n        - name: key1\n          secret: "
+k8s-resource/k8s-encryption-config.yaml: |
+  kind: EncryptionConfiguration
+  apiVersion: apiserver.config.k8s.io/v1
+  resources:
+    - resources:
+      - secrets
+      providers:
+      - aescbc:
+          keys:
+          - name: key1
+            secret: some secret
+      - identity: {}
 k8s-resource/kube-proxy-ds.yaml: |
   kind: DaemonSet
   apiVersion: extensions/v1beta1

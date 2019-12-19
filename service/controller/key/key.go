@@ -2,6 +2,7 @@ package key
 
 import (
 	"bytes"
+	"encoding/base64"
 	"html/template"
 	"io"
 	"os"
@@ -28,7 +29,7 @@ func OperatorVersion(getter LabelsGetter) string {
 	return getter.GetLabels()[label.OperatorVersion]
 }
 
-func Render(values interface{}, filesdir string) (map[string]string, error) {
+func Render(values interface{}, filesdir string, b64 bool) (map[string]string, error) {
 	files := make(map[string]string)
 
 	err := vfsutil.WalkFiles(data.Assets, filesdir, func(path string, f os.FileInfo, rs io.ReadSeeker, err error) error {
@@ -52,7 +53,11 @@ func Render(values interface{}, filesdir string) (map[string]string, error) {
 		if err != nil {
 			return microerror.Mask(err)
 		}
-		files[relativePath] = string(data.Bytes())
+		if b64 {
+			files[relativePath] = base64.StdEncoding.EncodeToString(data.Bytes())
+		} else {
+			files[relativePath] = string(data.Bytes())
+		}
 
 		return nil
 	})

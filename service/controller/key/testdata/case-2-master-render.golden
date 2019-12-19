@@ -1,826 +1,566 @@
-.: "ignition:\n  version: \"2.2.0\"\npasswd:\n  users:\n    - name: giantswarm\n      shell:
-  \"/bin/bash\"\n      uid: 1000\n      groups:\n        - \"sudo\"\n        - \"docker\"\n
-  \     sshAuthorizedKeys:\n        - \"ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCuJvxy3FKGrfJ4XB5exEdKXiqqteXEPFzPtex6dC0lHyigtO7l+NXXbs9Lga2+Ifs0Tza92MRhg/FJ+6za3oULFo7+gDyt86DIkZkMFdnSv9+YxYe+g4zqakSV+bLVf2KP6krUGJb7t4Nb+gGH62AiUx+58Onxn5rvYC0/AXOYhkAiH8PydXTDJDPhSA/qWSWEeCQistpZEDFnaVi0e7uq/k3hWJ+v9Gz0qqChHKWWOYp3W6aiIE3G6gLOXNEBdWRrjK6xmrSmo9Toqh1G7iIV0Y6o9w5gIHJxf6+8X70DCuVDx9OLHmjjMyGnd+1c3yTFMUdugtvmeiGWE0E7ZjNSNIqWlnvYJ0E1XPBiyQ7nhitOtVvPC4kpRP7nOFiCK9n8Lr3z3p4v3GO0FU3/qvLX+ECOrYK316gtwSJMd+HIouCbaJaFGvT34peaq1uluOP/JE+rFOnszZFpCYgTY2b4lWjf2krkI/a/3NDJPnRpjoE3RjmbepkZeIdOKTCTH1xYZ3O8dWKRX8X4xORvKJO+oV2UdoZlFa/WJTmq23z4pCVm0UWDYR5C2b9fHwxh/xrPT7CQ0E+E9wmeOvR4wppDMseGQCL+rSzy2AYiQ3D8iQxk0r6T+9MyiRCfuY73p63gB3m37jMQSLHvm77MkRnYcBy61Qxk+y+ls2D0xJfqxw==
-  giantswarm\"\n\nsystemd:\n  units:\n  # Start - manual management for cgroup structure\n
-  \ - name: kubereserved.slice\n    path: /etc/systemd/system/kubereserved.slice\n
-  \   content: |\n            [Unit]\n      Description=Limited resources slice for
-  Kubernetes services\n      Documentation=man:systemd.special(7)\n      DefaultDependencies=no\n
-  \     Before=slices.target\n      Requires=-.slice\n      After=-.slice\n      \n
-  \ # End - manual management for cgroup structure\n  - name: audit-rules.service\n
-  \   enabled: true\n    dropins:\n    - name: 10-Wait-For-Docker.conf\n      contents:
-  |\n                  [Service]\n          ExecStartPre=/bin/bash -c &#34;while [
-  ! -f /etc/audit/rules.d/10-docker.rules ]; do echo &#39;Waiting for /etc/audit/rules.d/10-docker.rules
-  to be written&#39; &amp;&amp; sleep 1; done&#34;\n          \n  - name: set-certs-group-owner-permission-giantswarm.service\n
-  \   enabled: true\n    contents: |\n            [Unit]\n      Description=Change
-  group owner for certificates to giantswarm\n      Wants=k8s-kubelet.service k8s-setup-network-env.service\n
-  \     After=k8s-kubelet.service k8s-setup-network-env.service\n      [Service]\n
-  \     Type=oneshot\n      ExecStart=/bin/sh -c &#34;find /etc/kubernetes/ssl -name
-  &#39;*.pem&#39; -print | xargs -i  sh -c &#39;chown root:giantswarm {} &amp;&amp;
-  chmod 640 {}&#39;&#34;\n      [Install]\n      WantedBy=multi-user.target\n      \n
-  \ - name: wait-for-domains.service\n    enabled: true\n    contents: |\n            [Unit]\n
-  \     Description=Wait for etcd and k8s API domains to be available\n      [Service]\n
-  \     Type=oneshot\n      ExecStart=/opt/wait-for-domains\n      [Install]\n      WantedBy=multi-user.target\n
-  \     \n  - name: os-hardeing.service\n    enabled: true\n    contents: |\n            [Unit]\n
-  \     Description=Apply os hardening\n      [Service]\n      Type=oneshot\n      ExecStartPre=-/bin/bash
-  -c &#34;gpasswd -d core rkt; gpasswd -d core docker; gpasswd -d core wheel&#34;\n
-  \     ExecStartPre=/bin/bash -c &#34;until [ -f &#39;/etc/sysctl.d/hardening.conf&#39;
-  ]; do echo Waiting for sysctl file; sleep 1s;done;&#34;\n      ExecStart=/usr/sbin/sysctl
-  -p /etc/sysctl.d/hardening.conf\n      [Install]\n      WantedBy=multi-user.target\n
-  \     \n  - name: k8s-setup-kubelet-config.service\n    enabled: true\n    contents:
-  |\n            [Unit]\n      Description=k8s-setup-kubelet-config Service\n      After=k8s-setup-network-env.service
-  docker.service\n      Requires=k8s-setup-network-env.service docker.service\n      [Service]\n
-  \     Type=oneshot\n      RemainAfterExit=yes\n      TimeoutStartSec=0\n      EnvironmentFile=/etc/network-environment\n
-  \     ExecStart=/bin/bash -c &#39;/usr/bin/envsubst &lt;/etc/kubernetes/config/kubelet.yaml.tmpl
-  &gt;/etc/kubernetes/config/kubelet.yaml&#39;\n      [Install]\n      WantedBy=multi-user.target\n
-  \     \n  - name: containerd.service\n    enabled: true\n    contents: |\n    dropins:\n
-  \     - name: 10-change-cgroup.conf\n        contents: |\n                    \n
-  \ - name: docker.service\n    enabled: true\n    contents: |\n    dropins:\n      -
-  name: 10-giantswarm-extra-args.conf\n        contents: |\n                [Service]\n
-  \     CPUAccounting=true\n      MemoryAccounting=true\n      Slice=kubereserved.slice\n
-  \     Environment=&#34;DOCKER_CGROUPS=--exec-opt native.cgroupdriver=cgroupfs --cgroup-parent=/kubereserved.slice
-  --log-opt max-size=25m --log-opt max-file=2 --log-opt labels=io.kubernetes.container.hash,io.kubernetes.container.name,io.kubernetes.pod.name,io.kubernetes.pod.namespace,io.kubernetes.pod.uid&#34;\n
-  \     Environment=&#34;DOCKER_OPT_BIP=--bip=DockerDaemonCIDR&#34;\n      Environment=&#34;DOCKER_OPTS=--live-restore
-  --icc=false --userland-proxy=false&#34;\n      \n  - name: k8s-setup-network-env.service\n
-  \   enabled: true\n    contents: |\n            [Unit]\n      Description=k8s-setup-network-env
-  Service\n      Wants=network.target docker.service wait-for-domains.service\n      After=network.target
-  docker.service wait-for-domains.service\n      [Service]\n      Type=oneshot\n      TimeoutStartSec=0\n
-  \     Environment=&#34;IMAGE=DockerNetworkSetupImage&#34;\n      Environment=&#34;NAME=%p.service&#34;\n
-  \     ExecStartPre=/usr/bin/mkdir -p /opt/bin/\n      ExecStartPre=/usr/bin/docker
-  pull $IMAGE\n      ExecStartPre=-/usr/bin/docker stop -t 10 $NAME\n      ExecStartPre=-/usr/bin/docker
-  rm -f $NAME\n      ExecStart=/usr/bin/docker run --rm --net=host -v /etc:/etc --name
-  $NAME $IMAGE\n      ExecStop=-/usr/bin/docker stop -t 10 $NAME\n      ExecStopPost=-/usr/bin/docker
-  rm -f $NAME\n      [Install]\n      WantedBy=multi-user.target\n      \n  - name:
-  etcd3.service\n    enabled: true\n    contents: |\n            [Unit]\n      Description=etcd3\n
-  \     Wants=k8s-setup-network-env.service\n      After=k8s-setup-network-env.service\n
-  \     Conflicts=etcd.service etcd2.service\n      StartLimitIntervalSec=0\n      [Service]\n
-  \     Restart=always\n      RestartSec=0\n      TimeoutStopSec=10\n      LimitNOFILE=40000\n
-  \     CPUAccounting=true\n      MemoryAccounting=true\n      Slice=kubereserved.slice\n
-  \     Environment=IMAGE=\n  - name: etcd3-defragmentation.service\n    enabled:
-  false\n    contents: |\n            [Unit]\n      Description=etcd defragmentation
-  job\n      After=docker.service etcd3.service\n      Requires=docker.service etcd3.service\n
-  \     [Service]\n      Type=oneshot\n      EnvironmentFile=/etc/network-environment\n
-  \     Environment=IMAGE=RegistryDomain/EtcdImage\n      Environment=NAME=%p.service\n
-  \     ExecStartPre=-/usr/bin/docker stop  $NAME\n      ExecStartPre=-/usr/bin/docker
-  rm  $NAME\n      ExecStartPre=-/usr/bin/docker pull $IMAGE\n      ExecStart=/usr/bin/docker
-  run \\\n        -v /etc/kubernetes/ssl/etcd/:/etc/etcd \\\n        --net=host  \\\n
-  \       -e ETCDCTL_API=3 \\\n        --name $NAME \\\n        $IMAGE \\\n        etcdctl
-  \\\n        --endpoints https://127.0.0.1:2379 \\\n        --cacert /etc/etcd/server-ca.pem
-  \\\n        --cert /etc/etcd/server-crt.pem \\\n        --key /etc/etcd/server-key.pem
-  \\\n        defrag \\\n        --command-timeout=60s \\\n        --dial-timeout=60s
-  \\\n        --keepalive-timeout=25s\n      [Install]\n      WantedBy=multi-user.target\n
-  \     \n  - name: etcd3-defragmentation.timer\n    enabled: true\n    contents:
-  |\n            [Unit]\n      Description=Execute etcd3-defragmentation every day
-  at 3.30AM UTC\n      [Timer]\n      OnCalendar=*-*-* 03:30:00 UTC\n      [Install]\n
-  \     WantedBy=multi-user.target\n      \n  - name: k8s-setup-download-hyperkube.service\n
-  \   enabled: true\n    contents: |\n            [Unit]\n      Description=Pulls
-  hyperkube binary from image to local FS\n      After=docker.service\n      Requires=docker.service\n
-  \     [Service]\n      Type=oneshot\n      RemainAfterExit=yes\n      TimeoutStartSec=0\n
-  \     Environment=&#34;IMAGE=RegistryDomain/K8sImage&#34;\n      Environment=&#34;NAME=%p.service&#34;\n
-  \     ExecStartPre=/bin/bash -c &#34;/usr/bin/docker create --name $NAME $IMAGE&#34;\n
-  \     ExecStart=/bin/bash -c &#34;/usr/bin/docker cp $NAME:/hyperkube /opt/bin/hyperkube&#34;\n
-  \     ExecStartPost=/bin/bash -c &#34;/usr/bin/docker rm $NAME&#34;\n      [Install]\n
-  \     WantedBy=multi-user.target\n      \n  - name: k8s-kubelet.service\n    enabled:
-  true\n    contents: |\n            [Unit]\n      Wants=k8s-setup-network-env.service
-  k8s-setup-kubelet-config.service k8s-setup-download-hyperkube.service\n      After=k8s-setup-network-env.service
-  k8s-setup-kubelet-config.service k8s-setup-download-hyperkube.service\n      Description=k8s-kubelet\n
-  \     StartLimitIntervalSec=0\n      [Service]\n      TimeoutStartSec=300\n      Restart=always\n
-  \     RestartSec=0\n      TimeoutStopSec=10\n      Slice=kubereserved.slice\n      CPUAccounting=true\n
-  \     MemoryAccounting=true\n      Environment=&#34;ETCD_CA_CERT_FILE=/etc/kubernetes/ssl/etcd/server-ca.pem&#34;\n
-  \     Environment=&#34;ETCD_CERT_FILE=/etc/kubernetes/ssl/etcd/server-crt.pem&#34;\n
-  \     Environment=&#34;ETCD_KEY_FILE=/etc/kubernetes/ssl/etcd/server-key.pem&#34;\n
-  \     EnvironmentFile=/etc/network-environment\n      ExecStart=/opt/bin/hyperkube
-  kubelet \\\n        kubeletArg1 \\\n        kubeletArg2 \\\n        --node-ip=${DEFAULT_IPV4}
-  \\\n        --config=/etc/kubernetes/config/kubelet.yaml \\\n        --enable-server
-  \\\n        --logtostderr=true \\\n        --cloud-provider=aws \\\n        --image-pull-progress-deadline=SomeProgressDeadline
-  \\\n        --network-plugin=cni \\\n        --register-node=true \\\n        --register-with-taints=node-role.kubernetes.io/master=:NoSchedule
-  \\\n        --kubeconfig=/etc/kubernetes/kubeconfig/kubelet.yaml \\\n        --node-labels=&#34;node.kubernetes.io/master,node-role.kubernetes.io/master,kubernetes.io/role=master,role=master,ip=${DEFAULT_IPV4},\n
-  \ - name: etcd2.service\n    enabled: false\n    mask: true\n  - name: update-engine.service\n
-  \   enabled: false\n    mask: true\n  - name: locksmithd.service\n    enabled: false\n
-  \   mask: true\n  - name: fleet.service\n    enabled: false\n    mask: true\n  -
-  name: fleet.socket\n    enabled: false\n    mask: true\n  - name: flanneld.service\n
-  \   enabled: false\n    mask: true\n  - name: systemd-networkd-wait-online.service\n
-  \   enabled: false\n    mask: true\n  - name: k8s-addons.service\n    enabled: true\n
-  \   contents: |\n            [Unit]\n      Description=Kubernetes Addons\n      Wants=k8s-kubelet.service
-  k8s-setup-network-env.service\n      After=k8s-kubelet.service k8s-setup-network-env.service\n
-  \     [Service]\n      Type=oneshot\n      ExecStart=/opt/k8s-addons\n      # https://github.com/kubernetes/kubernetes/issues/71078\n
-  \     ExecStartPost=/usr/bin/systemctl restart k8s-kubelet.service\n      [Install]\n
-  \     WantedBy=multi-user.target\n      \n  - name: debug-tools.service\n    enabled:
-  true\n    contents: |\n            [Unit]\n      Description=Install calicoctl and
-  crictl tools\n      After=network.target\n      [Service]\n      Type=oneshot\n
-  \     ExecStart=/opt/install-debug-tools\n      [Install]\n      WantedBy=multi-user.target\n
-  \     \n\nstorage:\n  files:\n    - path: /etc/ssh/trusted-user-ca-keys.pem\n      filesystem:
-  root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;base64,SSOPublicKey\n\"\n
-  \   - path: /srv/calico-all.yaml\n      filesystem: root\n      mode: 0644\n      contents:\n
-  \       source: \"data:text/plain;charset=utf-8;base64,# CALICO HAS SEPARATE MANIFEST
-  FOR AZURE\n# the azure manifest can be found in: https://github.com/giantswarm/azure-operator/blob/master/service/controller/vX/cloudconfig/template.go\n#
-  where X is the version of azure operator\n#\n# Extra changes:\n#  - Added resource
-  limits to calico-node and calico-kube-controller.\n#  - Added resource limits to
-  install-cni.\n#  - Added &#39;priorityClassName: system-cluster-critical&#39; to
-  calico daemonset.\n#\n# Calico Version v3.9.1\n# https://docs.projectcalico.org/v3.9/release-notes/\n#
-  This manifest includes the following component versions:\n#   calico/node:v3.9.1\n#
-  \  calico/cni:v3.9.1\n#   calico/kube-controllers:v3.9.1\n\n# This ConfigMap is
-  used to configure a self-hosted Calico installation.\nkind: ConfigMap\napiVersion:
-  v1\nmetadata:\n  name: calico-config\n  namespace: kube-system\ndata:\n  # Configure
-  this with the location of your etcd cluster.\n  etcd_endpoints: &#34;https://EtcdDomain:1234&#34;\n\n
-  \ # If you&#39;re using TLS enabled etcd uncomment the following.\n  # You must
-  also populate the Secret below with these files.\n  etcd_ca: &#34;/calico-secrets/client-ca.pem&#34;\n
-  \ etcd_cert: &#34;/calico-secrets/client-crt.pem&#34;\n  etcd_key: &#34;/calico-secrets/client-key.pem&#34;\n
-  \ # Typha is disabled.\n  typha_service_name: &#34;none&#34;\n  # Configure the
-  backend to use.\n  calico_backend: &#34;bird&#34;\n\n  # Configure the MTU to use\n
-  \ veth_mtu: &#34;CalicoMTU&#34;\n\n  # The CNI network configuration to install
-  on each node.  The special\n  # values in this config will be automatically populated.\n
-  \ cni_network_config: |-\n    {\n      &#34;name&#34;: &#34;k8s-pod-network&#34;,\n
-  \     &#34;cniVersion&#34;: &#34;0.3.1&#34;,\n      &#34;plugins&#34;: [\n        {\n
-  \         &#34;type&#34;: &#34;calico&#34;,\n          &#34;log_level&#34;: &#34;info&#34;,\n
-  \         &#34;nodename&#34;: &#34;__KUBERNETES_NODE_NAME__&#34;,\n          &#34;etcd_endpoints&#34;:
-  &#34;__ETCD_ENDPOINTS__&#34;,\n          &#34;etcd_key_file&#34;: &#34;__ETCD_KEY_FILE__&#34;,\n
-  \         &#34;etcd_cert_file&#34;: &#34;__ETCD_CERT_FILE__&#34;,\n          &#34;etcd_ca_cert_file&#34;:
-  &#34;__ETCD_CA_CERT_FILE__&#34;,\n          &#34;mtu&#34;: __CNI_MTU__,\n          &#34;ipam&#34;:
-  {\n              &#34;type&#34;: &#34;calico-ipam&#34;\n          },\n          &#34;policy&#34;:
-  {\n              &#34;type&#34;: &#34;k8s&#34;\n          },\n          &#34;kubernetes&#34;:
-  {\n              &#34;kubeconfig&#34;: &#34;__KUBECONFIG_FILEPATH__&#34;\n          }\n
-  \       },\n        {\n          &#34;type&#34;: &#34;portmap&#34;,\n          &#34;snat&#34;:
-  true,\n          &#34;capabilities&#34;: {&#34;portMappings&#34;: true}\n        }\n
-  \     ]\n    }\n---\n# Source: calico/templates/kdd-crds.yaml\napiVersion: apiextensions.k8s.io/v1beta1\nkind:
-  CustomResourceDefinition\nmetadata:\n   name: felixconfigurations.crd.projectcalico.org\nspec:\n
-  \ scope: Cluster\n  group: crd.projectcalico.org\n  version: v1\n  names:\n    kind:
-  FelixConfiguration\n    plural: felixconfigurations\n    singular: felixconfiguration\n---\n\napiVersion:
-  apiextensions.k8s.io/v1beta1\nkind: CustomResourceDefinition\nmetadata:\n  name:
-  ipamblocks.crd.projectcalico.org\nspec:\n  scope: Cluster\n  group: crd.projectcalico.org\n
-  \ version: v1\n  names:\n    kind: IPAMBlock\n    plural: ipamblocks\n    singular:
-  ipamblock\n\n---\n\napiVersion: apiextensions.k8s.io/v1beta1\nkind: CustomResourceDefinition\nmetadata:\n
-  \ name: blockaffinities.crd.projectcalico.org\nspec:\n  scope: Cluster\n  group:
-  crd.projectcalico.org\n  version: v1\n  names:\n    kind: BlockAffinity\n    plural:
-  blockaffinities\n    singular: blockaffinity\n\n---\n\napiVersion: apiextensions.k8s.io/v1beta1\nkind:
-  CustomResourceDefinition\nmetadata:\n  name: ipamhandles.crd.projectcalico.org\nspec:\n
-  \ scope: Cluster\n  group: crd.projectcalico.org\n  version: v1\n  names:\n    kind:
-  IPAMHandle\n    plural: ipamhandles\n    singular: ipamhandle\n\n---\n\napiVersion:
-  apiextensions.k8s.io/v1beta1\nkind: CustomResourceDefinition\nmetadata:\n  name:
-  ipamconfigs.crd.projectcalico.org\nspec:\n  scope: Cluster\n  group: crd.projectcalico.org\n
-  \ version: v1\n  names:\n    kind: IPAMConfig\n    plural: ipamconfigs\n    singular:
-  ipamconfig\n\n---\n\napiVersion: apiextensions.k8s.io/v1beta1\nkind: CustomResourceDefinition\nmetadata:\n
-  \ name: bgppeers.crd.projectcalico.org\nspec:\n  scope: Cluster\n  group: crd.projectcalico.org\n
-  \ version: v1\n  names:\n    kind: BGPPeer\n    plural: bgppeers\n    singular:
-  bgppeer\n\n---\n\napiVersion: apiextensions.k8s.io/v1beta1\nkind: CustomResourceDefinition\nmetadata:\n
-  \ name: bgpconfigurations.crd.projectcalico.org\nspec:\n  scope: Cluster\n  group:
-  crd.projectcalico.org\n  version: v1\n  names:\n    kind: BGPConfiguration\n    plural:
-  bgpconfigurations\n    singular: bgpconfiguration\n\n---\n\napiVersion: apiextensions.k8s.io/v1beta1\nkind:
-  CustomResourceDefinition\nmetadata:\n  name: ippools.crd.projectcalico.org\nspec:\n
-  \ scope: Cluster\n  group: crd.projectcalico.org\n  version: v1\n  names:\n    kind:
-  IPPool\n    plural: ippools\n    singular: ippool\n\n---\n\napiVersion: apiextensions.k8s.io/v1beta1\nkind:
-  CustomResourceDefinition\nmetadata:\n  name: hostendpoints.crd.projectcalico.org\nspec:\n
-  \ scope: Cluster\n  group: crd.projectcalico.org\n  version: v1\n  names:\n    kind:
-  HostEndpoint\n    plural: hostendpoints\n    singular: hostendpoint\n\n---\n\napiVersion:
-  apiextensions.k8s.io/v1beta1\nkind: CustomResourceDefinition\nmetadata:\n  name:
-  clusterinformations.crd.projectcalico.org\nspec:\n  scope: Cluster\n  group: crd.projectcalico.org\n
-  \ version: v1\n  names:\n    kind: ClusterInformation\n    plural: clusterinformations\n
-  \   singular: clusterinformation\n\n---\n\napiVersion: apiextensions.k8s.io/v1beta1\nkind:
-  CustomResourceDefinition\nmetadata:\n  name: globalnetworkpolicies.crd.projectcalico.org\nspec:\n
-  \ scope: Cluster\n  group: crd.projectcalico.org\n  version: v1\n  names:\n    kind:
-  GlobalNetworkPolicy\n    plural: globalnetworkpolicies\n    singular: globalnetworkpolicy\n\n---\n\napiVersion:
-  apiextensions.k8s.io/v1beta1\nkind: CustomResourceDefinition\nmetadata:\n  name:
-  globalnetworksets.crd.projectcalico.org\nspec:\n  scope: Cluster\n  group: crd.projectcalico.org\n
-  \ version: v1\n  names:\n    kind: GlobalNetworkSet\n    plural: globalnetworksets\n
-  \   singular: globalnetworkset\n\n---\n\napiVersion: apiextensions.k8s.io/v1beta1\nkind:
-  CustomResourceDefinition\nmetadata:\n  name: networkpolicies.crd.projectcalico.org\nspec:\n
-  \ scope: Namespaced\n  group: crd.projectcalico.org\n  version: v1\n  names:\n    kind:
-  NetworkPolicy\n    plural: networkpolicies\n    singular: networkpolicy\n\n---\n#
-  This manifest installs the calico-node container, as well\n# as the CNI plugins
-  and network config on\n# each master and worker node in a Kubernetes cluster.\nkind:
-  DaemonSet\napiVersion: apps/v1\nmetadata:\n  name: calico-node\n  namespace: kube-system\n
-  \ labels:\n    giantswarm.io/service-type: managed\n    k8s-app: calico-node\nspec:\n
-  \ selector:\n    matchLabels:\n      k8s-app: calico-node\n  updateStrategy:\n    type:
-  RollingUpdate\n    rollingUpdate:\n      maxUnavailable: 1\n  template:\n    metadata:\n
-  \     labels:\n        k8s-app: calico-node\n        giantswarm.io/service-type:
-  managed\n      annotations:\n        # This, along with the CriticalAddonsOnly toleration
-  below,\n        # marks the pod as a critical add-on, ensuring it gets\n        #
-  priority scheduling and that its resources are reserved\n        # if it ever gets
-  evicted.\n        scheduler.alpha.kubernetes.io/critical-pod: &#39;&#39;\n    spec:\n
-  \     nodeSelector:\n        kubernetes.io/os: linux\n      hostNetwork: true\n
-  \     tolerations:\n        # Make sure calico-node gets scheduled on all nodes.\n
-  \       - effect: NoSchedule\n          operator: Exists\n        # Mark the pod
-  as a critical add-on for rescheduling.\n        - key: CriticalAddonsOnly\n          operator:
-  Exists\n        - effect: NoExecute\n          operator: Exists\n      serviceAccountName:
-  calico-node\n      # Minimize downtime during a rolling upgrade or deletion; tell
-  Kubernetes to do a &#34;force\n      # deletion&#34;: https://kubernetes.io/docs/concepts/workloads/pods/pod/#termination-of-pods.\n
-  \     terminationGracePeriodSeconds: 0\n      priorityClassName: system-cluster-critical\n
-  \     initContainers:\n        # This container installs the CNI binaries\n        #
-  and CNI network config file on each node.\n        - name: install-cni\n          image:
-  RegistryDomain/giantswarm/cni:v3.9.1\n          command: [&#34;/install-cni.sh&#34;]\n
-  \         env:\n            # Name of the CNI config file to create.\n            -
-  name: CNI_CONF_NAME\n              value: &#34;10-calico.conflist&#34;\n            #
-  The CNI network config to install on each node.\n            - name: CNI_NETWORK_CONFIG\n
-  \             valueFrom:\n                configMapKeyRef:\n                  name:
-  calico-config\n                  key: cni_network_config\n            # The location
-  of the Calico etcd cluster.\n            - name: ETCD_ENDPOINTS\n              valueFrom:\n
-  \               configMapKeyRef:\n                  name: calico-config\n                  key:
-  etcd_endpoints\n            # CNI MTU Config variable\n            - name: CNI_MTU\n
-  \             valueFrom:\n                configMapKeyRef:\n                  name:
-  calico-config\n                  key: veth_mtu\n            # Prevents the container
-  from sleeping forever.\n            - name: SLEEP\n              value: &#34;false&#34;\n
-  \         resources:\n            requests:\n              cpu: 50m\n              memory:
-  100Mi\n            limits:\n              cpu: 50m\n              memory: 100Mi\n
-  \         volumeMounts:\n            - mountPath: /host/opt/cni/bin\n              name:
-  cni-bin-dir\n            - mountPath: /host/etc/cni/net.d\n              name: cni-net-dir\n
-  \           - mountPath: /calico-secrets\n              name: etcd-certs\n      containers:\n
-  \       # Runs calico-node container on each Kubernetes node.  This\n        # container
-  programs network policy and routes on each\n        # host.\n        - name: calico-node\n
-  \         image: RegistryDomain/giantswarm/node:v3.9.1\n          env:\n            #
-  The location of the Calico etcd cluster.\n            - name: ETCD_ENDPOINTS\n              valueFrom:\n
-  \               configMapKeyRef:\n                  name: calico-config\n                  key:
-  etcd_endpoints\n            # Location of the CA certificate for etcd.\n            -
-  name: ETCD_CA_CERT_FILE\n              valueFrom:\n                configMapKeyRef:\n
-  \                 name: calico-config\n                  key: etcd_ca\n            #
-  Location of the client key for etcd.\n            - name: ETCD_KEY_FILE\n              valueFrom:\n
-  \               configMapKeyRef:\n                  name: calico-config\n                  key:
-  etcd_key\n            # Location of the client certificate for etcd.\n            -
-  name: ETCD_CERT_FILE\n              valueFrom:\n                configMapKeyRef:\n
-  \                 name: calico-config\n                  key: etcd_cert\n            #
-  Set noderef for node controller.\n            - name: CALICO_K8S_NODE_REF\n              valueFrom:\n
-  \               fieldRef:\n                  fieldPath: spec.nodeName\n            #
-  Choose the backend to use.\n            - name: CALICO_NETWORKING_BACKEND\n              valueFrom:\n
-  \               configMapKeyRef:\n                  name: calico-config\n                  key:
-  calico_backend\n            # Cluster type to identify the deployment type\n            -
-  name: CLUSTER_TYPE\n              value: &#34;k8s,bgp&#34;\n            # Auto-detect
-  the BGP IP address.\n            - name: IP\n              value: &#34;autodetect&#34;\n
-  \           # Enable IPIP\n            - name: CALICO_IPV4POOL_IPIP\n              value:
-  &#34;Always&#34;\n            # Set MTU for tunnel device used if ipip is enabled\n
-  \           - name: FELIX_IPINIPMTU\n              valueFrom:\n                configMapKeyRef:\n
-  \                 name: calico-config\n                  key: veth_mtu\n            #
-  The default IPv4 pool to create on startup if none exists. Pod IPs will be\n            #
-  chosen from this range. Changing this value after installation will have\n            #
-  no effect. This should fall within `--cluster-cidr`.\n            - name: CALICO_IPV4POOL_CIDR\n
-  \             value: &#34;CalicoSubnet/CalicoCIDR&#34;\n            # Disable file
-  logging so `kubectl logs` works.\n            - name: CALICO_DISABLE_FILE_LOGGING\n
-  \             value: &#34;true&#34;\n            # Set Felix endpoint to host default
-  action to ACCEPT.\n            - name: FELIX_DEFAULTENDPOINTTOHOSTACTION\n              value:
-  &#34;ACCEPT&#34;\n            # Disable IPv6 on Kubernetes.\n            - name:
-  FELIX_IPV6SUPPORT\n              value: &#34;false&#34;\n            # Set Felix
-  logging to &#34;info&#34;\n            - name: FELIX_LOGSEVERITYSCREEN\n              value:
-  &#34;Warning&#34;\n            - name: FELIX_HEALTHENABLED\n              value:
-  &#34;true&#34;\n            - name: FELIX_PROMETHEUSMETRICSENABLED\n              value:
-  &#34;true&#34;\n          securityContext:\n            privileged: true\n          resources:\n
-  \           requests:\n              cpu: 250m\n              memory: 150Mi\n          livenessProbe:\n
-  \           exec:\n              command:\n              - /bin/calico-node\n              -
-  -felix-live\n            periodSeconds: 10\n            initialDelaySeconds: 10\n
-  \           failureThreshold: 6\n          readinessProbe:\n            exec:\n
-  \             command:\n                - /bin/calico-node\n                - -felix-ready\n
-  \               - -bird-ready\n            periodSeconds: 10\n          volumeMounts:\n
-  \           - mountPath: /lib/modules\n              name: lib-modules\n              readOnly:
-  true\n            - mountPath: /run/xtables.lock\n              name: xtables-lock\n
-  \             readOnly: false\n            - mountPath: /var/run/calico\n              name:
-  var-run-calico\n              readOnly: false\n            - mountPath: /var/lib/calico\n
-  \             name: var-lib-calico\n              readOnly: false\n            -
-  mountPath: /calico-secrets\n              name: etcd-certs\n      volumes:\n        #
-  Used by calico-node.\n        - name: lib-modules\n          hostPath:\n            path:
-  /lib/modules\n        - name: var-run-calico\n          hostPath:\n            path:
-  /var/run/calico\n        - name: var-lib-calico\n          hostPath:\n            path:
-  /var/lib/calico\n        - name: xtables-lock\n          hostPath:\n            path:
-  /run/xtables.lock\n            type: FileOrCreate\n        # Used to install CNI.\n
-  \       - name: cni-bin-dir\n          hostPath:\n            path: /opt/cni/bin\n
-  \       - name: cni-net-dir\n          hostPath:\n            path: /etc/cni/net.d\n
-  \       # Mount in the etcd TLS secrets.\n        # See https://kubernetes.io/docs/concepts/configuration/secret/\n
-  \       - name: etcd-certs\n          hostPath:\n            path: /etc/kubernetes/ssl/etcd\n---\n\napiVersion:
-  v1\nkind: ServiceAccount\nmetadata:\n  name: calico-node\n  namespace: kube-system\n\n---\n#
-  This manifest deploys the Calico Kubernetes controllers.\n# See https://github.com/projectcalico/kube-controllers\napiVersion:
-  apps/v1\nkind: Deployment\nmetadata:\n  name: calico-kube-controllers\n  namespace:
-  kube-system\n  labels:\n    giantswarm.io/service-type: managed\n    k8s-app: calico-kube-controllers\n
-  \ annotations:\n    scheduler.alpha.kubernetes.io/critical-pod: &#39;&#39;\nspec:\n
-  \ # The controllers can only have a single active instance.\n  replicas: 1\n  selector:\n
-  \   matchLabels:\n      k8s-app: calico-kube-controllers\n  strategy:\n    type:
-  Recreate\n  template:\n    metadata:\n      name: calico-kube-controllers\n      namespace:
-  kube-system\n      labels:\n        k8s-app: calico-kube-controllers\n        giantswarm.io/service-type:
-  managed\n    spec:\n      nodeSelector:\n        kubernetes.io/os: linux\n        kubernetes.io/role:
-  master\n      # The controllers must run in the host network namespace so that\n
-  \     # it isn&#39;t governed by policy that would prevent it from working.\n      hostNetwork:
-  true\n      tolerations:\n        # Mark the pod as a critical add-on for rescheduling.\n
-  \       - key: CriticalAddonsOnly\n          operator: Exists\n        - key: node-role.kubernetes.io/master\n
-  \         effect: NoSchedule\n      serviceAccountName: calico-kube-controllers\n
-  \     priorityClassName: system-cluster-critical\n      containers:\n        - name:
-  calico-kube-controllers\n          image: RegistryDomain/giantswarm/kube-controllers:v3.9.1\n
-  \         env:\n            # The location of the Calico etcd cluster.\n            -
-  name: ETCD_ENDPOINTS\n              valueFrom:\n                configMapKeyRef:\n
-  \                 name: calico-config\n                  key: etcd_endpoints\n            #
-  Location of the CA certificate for etcd.\n            - name: ETCD_CA_CERT_FILE\n
-  \             valueFrom:\n                configMapKeyRef:\n                  name:
-  calico-config\n                  key: etcd_ca\n            # Location of the client
-  key for etcd.\n            - name: ETCD_KEY_FILE\n              valueFrom:\n                configMapKeyRef:\n
-  \                 name: calico-config\n                  key: etcd_key\n            #
-  Location of the client certificate for etcd.\n            - name: ETCD_CERT_FILE\n
-  \             valueFrom:\n                configMapKeyRef:\n                  name:
-  calico-config\n                  key: etcd_cert\n            # Choose which controllers
-  to run.\n            - name: ENABLED_CONTROLLERS\n              value: policy,profile,workloadendpoint,node,serviceaccount\n
-  \         volumeMounts:\n            # Mount in the etcd TLS secrets.\n            -
-  mountPath: /calico-secrets\n              name: etcd-certs\n          resources:\n
-  \           requests:\n              cpu: 250m\n              memory: 100Mi\n            limits:\n
-  \             cpu: 250m\n              memory: 100Mi\n          readinessProbe:\n
-  \           exec:\n              command:\n                - /usr/bin/check-status\n
-  \               - -r\n      volumes:\n        # Mount in the etcd TLS secrets with
-  mode 400.\n        # See https://kubernetes.io/docs/concepts/configuration/secret/\n
-  \       - name: etcd-certs\n          hostPath:\n            path: /etc/kubernetes/ssl/etcd\n\n---\n\napiVersion:
-  v1\nkind: ServiceAccount\nmetadata:\n  name: calico-kube-controllers\n  namespace:
-  kube-system\n---\n---\n# Include a clusterrole for the kube-controllers component,\n#
-  and bind it to the calico-kube-controllers serviceaccount.\nkind: ClusterRole\napiVersion:
-  rbac.authorization.k8s.io/v1\nmetadata:\n  name: calico-kube-controllers\nrules:\n-
-  apiGroups:\n  - &#34;&#34;\n  resources:\n  - nodes\n  - pods\n  - namespaces\n
-  \ - serviceaccounts\n  verbs:\n  - watch\n  - list\n  - get\n- apiGroups:\n  - networking.k8s.io\n
-  \ resources:\n  - networkpolicies\n  verbs:\n  - watch\n  - list\n  # IPAM resources
-  are manipulated when nodes are deleted.\n- apiGroups:\n  - crd.projectcalico.org\n
-  \ resources:\n  - ippools\n  verbs:\n  - list\n- apiGroups:\n  - crd.projectcalico.org\n
-  \ resources:\n  - blockaffinities\n  - ipamblocks\n  - ipamhandles\n  verbs:\n  -
-  get\n  - list\n  - create\n  - update\n  - delete\n- apiGroups:\n  - crd.projectcalico.org\n
-  \ resources:\n  - clusterinformations\n  verbs:\n  - get\n  - create\n  - update\n---\nkind:
-  ClusterRoleBinding\napiVersion: rbac.authorization.k8s.io/v1\nmetadata:\n  name:
-  calico-kube-controllers\nroleRef:\n  apiGroup: rbac.authorization.k8s.io\n  kind:
-  ClusterRole\n  name: calico-kube-controllers\nsubjects:\n  - kind: ServiceAccount\n
-  \   name: calico-kube-controllers\n    namespace: kube-system\n---\n# Include a
-  clusterrole for the calico-node DaemonSet,\n# and bind it to the calico-node serviceaccount.\nkind:
-  ClusterRole\napiVersion: rbac.authorization.k8s.io/v1\nmetadata:\n  name: calico-node\nrules:\n
-  \ # The CNI plugin needs to get pods, nodes, and namespaces.\n  - apiGroups: [&#34;&#34;]\n
-  \   resources:\n      - pods\n      - nodes\n      - namespaces\n    verbs:\n      -
-  get\n  - apiGroups: [&#34;&#34;]\n    resources:\n      - endpoints\n      - services\n
-  \   verbs:\n      # Used to discover service IPs for advertisement.\n      - watch\n
-  \     - list\n      # Used to discover Typhas.\n      - get\n  - apiGroups: [&#34;&#34;]\n
-  \   resources:\n      - nodes/status\n    verbs:\n      # Needed for clearing NodeNetworkUnavailable
-  flag.\n      - patch\n      # Calico stores some configuration information in node
-  annotations.\n      - update\n  # Watch for changes to Kubernetes NetworkPolicies.\n
-  \ - apiGroups: [&#34;networking.k8s.io&#34;]\n    resources:\n      - networkpolicies\n
-  \   verbs:\n      - watch\n      - list\n  # Used by Calico for policy information.\n
-  \ - apiGroups: [&#34;&#34;]\n    resources:\n      - pods\n      - namespaces\n
-  \     - serviceaccounts\n    verbs:\n      - list\n      - watch\n  # The CNI plugin
-  patches pods/status.\n  - apiGroups: [&#34;&#34;]\n    resources:\n      - pods/status\n
-  \   verbs:\n      - patch\n  # Calico monitors various CRDs for config.\n  - apiGroups:
-  [&#34;crd.projectcalico.org&#34;]\n    resources:\n      - globalfelixconfigs\n
-  \     - felixconfigurations\n      - bgppeers\n      - globalbgpconfigs\n      -
-  bgpconfigurations\n      - ippools\n      - ipamblocks\n      - globalnetworkpolicies\n
-  \     - globalnetworksets\n      - networkpolicies\n      - networksets\n      -
-  clusterinformations\n      - hostendpoints\n      - blockaffinities\n    verbs:\n
-  \     - get\n      - list\n      - watch\n  # Calico must create and update some
-  CRDs on startup.\n  - apiGroups: [&#34;crd.projectcalico.org&#34;]\n    resources:\n
-  \     - ippools\n      - felixconfigurations\n      - clusterinformations\n    verbs:\n
-  \     - create\n      - update\n  # Calico stores some configuration information
-  on the node.\n  - apiGroups: [&#34;&#34;]\n    resources:\n      - nodes\n    verbs:\n
-  \     - get\n      - list\n      - watch\n  # These permissions are only requried
-  for upgrade from v2.6, and can\n  # be removed after upgrade or on fresh installations.\n
-  \ - apiGroups: [&#34;crd.projectcalico.org&#34;]\n    resources:\n      - bgpconfigurations\n
-  \     - bgppeers\n    verbs:\n      - create\n      - update\n  # These permissions
-  are required for Calico CNI to perform IPAM allocations.\n  - apiGroups: [&#34;crd.projectcalico.org&#34;]\n
-  \   resources:\n      - blockaffinities\n      - ipamblocks\n      - ipamhandles\n
-  \   verbs:\n      - get\n      - list\n      - create\n      - update\n      - delete\n
-  \ - apiGroups: [&#34;crd.projectcalico.org&#34;]\n    resources:\n      - ipamconfigs\n
-  \   verbs:\n      - get\n  # Block affinities must also be watchable by confd for
-  route aggregation.\n  - apiGroups: [&#34;crd.projectcalico.org&#34;]\n    resources:\n
-  \     - blockaffinities\n    verbs:\n      - watch\n  # The Calico IPAM migration
-  needs to get daemonsets. These permissions can be\n  # removed if not upgrading
-  from an installation using host-local IPAM.\n  - apiGroups: [&#34;apps&#34;]\n    resources:\n
-  \     - daemonsets\n    verbs:\n      - get\n---\napiVersion: rbac.authorization.k8s.io/v1\nkind:
-  ClusterRoleBinding\nmetadata:\n  name: calico-node\nroleRef:\n  apiGroup: rbac.authorization.k8s.io\n
-  \ kind: ClusterRole\n  name: calico-node\nsubjects:\n  - kind: ServiceAccount\n
-  \   name: calico-node\n    namespace: kube-system\n\"\n    - path: /srv/ingress-controller-svc.yaml\n
-  \     filesystem: root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,apiVersion:
-  v1\nkind: Service\nmetadata:\n  annotations:\n    prometheus.io/port: &#34;10254&#34;\n
-  \   prometheus.io/scrape: &#34;true&#34;\n  name: nginx-ingress-controller\n  namespace:
-  kube-system\n  labels:\n    k8s-app: nginx-ingress-controller\nspec:\n  type: NodePort\n
-  \ ports:\n  - name: http\n    port: 80\n    nodePort: 30010\n    protocol: TCP\n
-  \   targetPort: 80\n  - name: https\n    port: 443\n    nodePort: 30011\n    protocol:
-  TCP\n    targetPort: 443\n  selector:\n    k8s-app: nginx-ingress-controller\n\"\n\n
-  \   - path: /etc/kubernetes/config/proxy-config.yml\n      filesystem: root\n      mode:
-  0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,apiVersion:
-  kubeproxy.config.k8s.io/v1alpha1\nclientConnection:\n  kubeconfig: /etc/kubernetes/config/proxy-kubeconfig.yaml\nkind:
-  KubeProxyConfiguration\nmode: iptables\nresourceContainer: /kube-proxy\nclusterCIDR:
-  CalicoSubnet/CalicoCIDR\nmetricsBindAddress: 0.0.0.0:10249\n\"\n\n    - path: /srv/kube-proxy-config.yaml\n
-  \     filesystem: root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,apiVersion:
-  kubeproxy.config.k8s.io/v1alpha1\nclientConnection:\n  kubeconfig: /etc/kubernetes/config/proxy-kubeconfig.yaml\nkind:
-  KubeProxyConfiguration\nmode: iptables\nresourceContainer: /kube-proxy\nclusterCIDR:
-  CalicoSubnet/CalicoCIDR\nmetricsBindAddress: 0.0.0.0:10249\n\"\n\n    - path: /srv/kube-proxy-sa.yaml\n
-  \     filesystem: root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,apiVersion:
-  v1\nkind: ServiceAccount\nmetadata:\n  name: kube-proxy\n  namespace: kube-system\"\n\n
-  \   - path: /srv/kube-proxy-ds.yaml\n      filesystem: root\n      mode: 0644\n
-  \     contents:\n        source: \"data:text/plain;charset=utf-8;base64,kind: DaemonSet\napiVersion:
-  extensions/v1beta1\nmetadata:\n  name: kube-proxy\n  namespace: kube-system\n  labels:\n
-  \   component: kube-proxy\n    k8s-app: kube-proxy\n    kubernetes.io/cluster-service:
-  &#34;true&#34;\nspec:\n  selector:\n    matchLabels:\n      k8s-app: kube-proxy\n
-  \ updateStrategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxUnavailable:
-  1\n  template:\n    metadata:\n      labels:\n        component: kube-proxy\n        k8s-app:
-  kube-proxy\n        kubernetes.io/cluster-service: &#34;true&#34;\n      annotations:\n
-  \       scheduler.alpha.kubernetes.io/critical-pod: &#39;&#39;\n    spec:\n      tolerations:\n
-  \     # Mark the pod as a critical add-on for rescheduling.\n      - key: CriticalAddonsOnly\n
-  \       operator: Exists\n      # Make sure the pod gets scheduled on all nodes.\n
-  \     - operator: Exists\n      hostNetwork: true\n      priorityClassName: system-node-critical\n
-  \     serviceAccountName: kube-proxy\n      containers:\n        - name: kube-proxy\n
-  \         image: RegistryDomain/K8sImage\n          command:\n          - /hyperkube\n
-  \         - kube-proxy\n          - --config=/etc/kubernetes/config/proxy-config.yml\n
-  \         - --v=2\n          livenessProbe:\n            httpGet:\n              path:
-  /healthz\n              port: 10256\n            initialDelaySeconds: 10\n            periodSeconds:
-  3\n          resources:\n            requests:\n              memory: &#34;80Mi&#34;\n
-  \             cpu: &#34;75m&#34;\n          securityContext:\n            privileged:
-  true\n          volumeMounts:\n          - mountPath: /etc/ssl/certs\n            name:
-  ssl-certs-host\n            readOnly: true\n          - mountPath: /etc/kubernetes/config/\n
-  \           name: k8s-config\n          - mountPath: /etc/kubernetes/kubeconfig/\n
-  \           name: k8s-kubeconfig\n            readOnly: true\n          - mountPath:
-  /etc/kubernetes/ssl\n            name: ssl-certs-kubernetes\n            readOnly:
-  true\n          - mountPath: /lib/modules\n            name: lib-modules\n            readOnly:
-  true\n      volumes:\n      - hostPath:\n          path: /etc/kubernetes/config/\n
-  \       name: k8s-config\n      - hostPath:\n          path: /etc/kubernetes/config/\n
-  \       name: k8s-kubeconfig\n      - hostPath:\n          path: /etc/kubernetes/ssl\n
-  \       name: ssl-certs-kubernetes\n      - hostPath:\n          path: /usr/share/ca-certificates\n
-  \       name: ssl-certs-host\n      - hostPath:\n          path: /lib/modules\n
-  \       name: lib-modules\n\"\n\n    - path: /srv/rbac_bindings.yaml\n      filesystem:
-  root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,##
-  User\nkind: ClusterRoleBinding\napiVersion: rbac.authorization.k8s.io/v1\nmetadata:\n
-  \ name: giantswarm-admin\nsubjects:\n- kind: User\n  name: APIDomain\n  apiGroup:
-  rbac.authorization.k8s.io\nroleRef:\n  kind: ClusterRole\n  name: cluster-admin\n
-  \ apiGroup: rbac.authorization.k8s.io\n---\n## Worker\nkind: ClusterRoleBinding\napiVersion:
-  rbac.authorization.k8s.io/v1\nmetadata:\n  name: kubelet\nsubjects:\n- kind: User\n
-  \ name: K8sKubeletDomain\n  apiGroup: rbac.authorization.k8s.io\nroleRef:\n  kind:
-  ClusterRole\n  name: system:node\n  apiGroup: rbac.authorization.k8s.io\n---\nkind:
-  ClusterRoleBinding\napiVersion: rbac.authorization.k8s.io/v1\nmetadata:\n  name:
-  proxy\nsubjects:\n- kind: User\n  name: K8sKubeletDomain\n  apiGroup: rbac.authorization.k8s.io\nroleRef:\n
-  \ kind: ClusterRole\n  name: system:node-proxier\n  apiGroup: rbac.authorization.k8s.io\n---\n##
-  Master\nkind: ClusterRoleBinding\napiVersion: rbac.authorization.k8s.io/v1\nmetadata:\n
-  \ name: kube-controller-manager\nsubjects:\n- kind: User\n  name: APIDomain\n  apiGroup:
-  rbac.authorization.k8s.io\nroleRef:\n  kind: ClusterRole\n  name: system:kube-controller-manager\n
-  \ apiGroup: rbac.authorization.k8s.io\n---\nkind: ClusterRoleBinding\napiVersion:
-  rbac.authorization.k8s.io/v1\nmetadata:\n  name: kube-scheduler\nsubjects:\n- kind:
-  User\n  name: APIDomain\n  apiGroup: rbac.authorization.k8s.io\nroleRef:\n  kind:
-  ClusterRole\n  name: system:kube-scheduler\n  apiGroup: rbac.authorization.k8s.io\n---\n##
-  node-operator\nkind: ClusterRoleBinding\napiVersion: rbac.authorization.k8s.io/v1\nmetadata:\n
-  \ name: node-operator\nsubjects:\n- kind: User\n  name: node-operator.ClusterBaseDomain\n
-  \ apiGroup: rbac.authorization.k8s.io\nroleRef:\n  kind: ClusterRole\n  name: node-operator\n
-  \ apiGroup: rbac.authorization.k8s.io\n---\n## prometheus-external is prometheus
-  from host cluster\nkind: ClusterRoleBinding\napiVersion: rbac.authorization.k8s.io/v1\nmetadata:\n
-  \ name: prometheus-external\nsubjects:\n- kind: User\n  name: prometheus.ClusterBaseDomain\n
-  \ apiGroup: rbac.authorization.k8s.io\nroleRef:\n  kind: ClusterRole\n  name: prometheus-external\n
-  \ apiGroup: rbac.authorization.k8s.io\n\"\n\n    - path: /srv/rbac_roles.yaml\n
-  \     filesystem: root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,##
-  node-operator\nkind: ClusterRole\napiVersion: rbac.authorization.k8s.io/v1\nmetadata:\n
-  \ name: node-operator\nrules:\n- apiGroups: [&#34;&#34;]\n  resources: [&#34;nodes&#34;]\n
-  \ verbs: [&#34;patch&#34;]\n- apiGroups: [&#34;&#34;]\n  resources: [&#34;pods&#34;]\n
-  \ verbs: [&#34;list&#34;, &#34;delete&#34;]\n---\n## prometheus-external\nkind:
-  ClusterRole\napiVersion: rbac.authorization.k8s.io/v1\nmetadata:\n  name: prometheus-external\nrules:\n-
-  apiGroups: [&#34;&#34;]\n  resources:\n  - nodes\n  - nodes/proxy\n  - services\n
-  \ - endpoints\n  - pods\n  verbs: [&#34;get&#34;, &#34;list&#34;, &#34;watch&#34;]\n-
-  apiGroups:\n  - extensions\n  resources:\n  - ingresses\n  verbs: [&#34;get&#34;,
-  &#34;list&#34;, &#34;watch&#34;]\n- nonResourceURLs: [&#34;/metrics&#34;]\n  verbs:
-  [&#34;get&#34;]\n\"\n\n    - path: /srv/priority_classes.yaml\n      filesystem:
-  root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,apiVersion:
-  scheduling.k8s.io/v1\nkind: PriorityClass\nmetadata:\n  name: giantswarm-critical\nvalue:
-  1000000000\nglobalDefault: false\ndescription: &#34;This priority class is used
-  by giantswarm kubernetes components.&#34;\n\"\n\n    - path: /srv/psp_policies.yaml\n
-  \     filesystem: root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,apiVersion:
-  extensions/v1beta1\nkind: PodSecurityPolicy\nmetadata:\n  name: privileged\n  annotations:\n
-  \   seccomp.security.alpha.kubernetes.io/allowedProfileNames: &#39;*&#39;\nspec:\n
-  \ allowPrivilegeEscalation: true\n  allowedCapabilities:\n  - &#39;*&#39;\n  fsGroup:\n
-  \   rule: RunAsAny\n  privileged: true\n  runAsUser:\n    rule: RunAsAny\n  seLinux:\n
-  \   rule: RunAsAny\n  supplementalGroups:\n    rule: RunAsAny\n  volumes:\n  - &#39;*&#39;\n
-  \ hostPID: true\n  hostIPC: true\n  hostNetwork: true\n  hostPorts:\n  - min: 0\n
-  \   max: 65536\n---\n---\napiVersion: extensions/v1beta1\nkind: PodSecurityPolicy\nmetadata:\n
-  \ name: restricted\nspec:\n  privileged: false\n  allowPrivilegeEscalation: false\n
-  \ runAsUser:\n    ranges:\n      - max: 65535\n        min: 1000\n    rule: MustRunAs\n
-  \ seLinux:\n    rule: RunAsAny\n  supplementalGroups:\n    rule: &#39;MustRunAs&#39;\n
-  \   ranges:\n      - min: 1\n        max: 65535\n  fsGroup:\n    rule: &#39;MustRunAs&#39;\n
-  \   ranges:\n      - min: 1\n        max: 65535\n  volumes:\n  - &#39;secret&#39;\n
-  \ - &#39;configMap&#39;\n  hostPID: false\n  hostIPC: false\n  hostNetwork: false\n
-  \ readOnlyRootFilesystem: false\n\"\n\n    - path: /srv/psp_roles.yaml\n      filesystem:
-  root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,#
-  restrictedPSP grants access to use\n# the restricted PSP.\napiVersion: rbac.authorization.k8s.io/v1\nkind:
-  ClusterRole\nmetadata:\n  name: restricted-psp-user\nrules:\n- apiGroups:\n  - extensions\n
-  \ resources:\n  - podsecuritypolicies\n  resourceNames:\n  - restricted\n  verbs:\n
-  \ - use\n---\n# privilegedPSP grants access to use the privileged\n# PSP.\napiVersion:
-  rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: privileged-psp-user\nrules:\n-
-  apiGroups:\n  - extensions\n  resources:\n  - podsecuritypolicies\n  resourceNames:\n
-  \ - privileged\n  verbs:\n  - use\n\"\n\n    - path: /srv/psp_binding.yaml\n      filesystem:
-  root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,apiVersion:
-  rbac.authorization.k8s.io/v1\nkind: ClusterRoleBinding\nmetadata:\n    name: privileged-psp-users\nsubjects:\n-
-  kind: ServiceAccount\n  name: calico-node\n  namespace: kube-system\n- kind: ServiceAccount\n
-  \ name: calico-kube-controllers\n  namespace: kube-system\n- kind: ServiceAccount\n
-  \ name: kube-proxy\n  namespace: kube-system\nroleRef:\n  apiGroup: rbac.authorization.k8s.io\n
-  \ kind: ClusterRole\n  name: privileged-psp-user\n---\n# grants the restricted PSP
-  role to\n# the all authenticated users.\napiVersion: rbac.authorization.k8s.io/v1\nkind:
-  ClusterRoleBinding\nmetadata:\n    name: restricted-psp-users\nsubjects:\n- kind:
-  Group\n  apiGroup: rbac.authorization.k8s.io\n  name: system:authenticated\nroleRef:\n
-  \ apiGroup: rbac.authorization.k8s.io\n  kind: ClusterRole\n  name: restricted-psp-user\n\"\n\n
-  \   - path: /srv/network_policies.yaml\n      filesystem: root\n      mode: 0644\n
-  \     contents:\n        source: \"data:text/plain;charset=utf-8;base64,---\napiVersion:
-  networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: default-deny-all\nspec:\n
-  \ podSelector: {}\n  policyTypes:\n  - Ingress\n  - Egress\n\"\n\n    - path: /opt/wait-for-domains\n
-  \     filesystem: root\n      mode: 0544\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,#!/bin/bash\ndomains=&#34;EtcdDomain
-  APIDomain quay.io&#34;\n\nfor domain in $domains; do\nuntil nslookup $domain; do\n
-  \   echo &#34;Waiting for domain $domain to be available&#34;\n    sleep 5\ndone\n\necho
-  &#34;Successfully resolved domain $domain&#34;\ndone\n\"\n\n    - path: /opt/k8s-addons\n
-  \     filesystem: root\n      mode: 0544\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,#!/bin/bash\n\nexport
-  KUBECONFIG=/etc/kubernetes/kubeconfig/addons.yaml\n# kubectl 1.12.2\nKUBECTL=RegistryDomain/giantswarm/docker-kubectl:f5cae44c480bd797dc770dd5f62d40b74063c0d7\n\n/usr/bin/docker
-  pull $KUBECTL\n\n# wait for healthy master\nwhile [ &#34;$(/usr/bin/docker run -e
-  KUBECONFIG=${KUBECONFIG} --net=host --rm -v /etc/kubernetes:/etc/kubernetes $KUBECTL
-  get cs | grep Healthy | wc -l)&#34; -ne &#34;3&#34; ]; do sleep 1 &amp;&amp; echo
-  &#39;Waiting for healthy k8s&#39;; done\n\n# label namespaces (required for network
-  egress policies)\nNAMESPACES=&#34;default kube-system&#34;\nfor namespace in ${NAMESPACES}\ndo\n
-  \   if ! /usr/bin/docker run -e KUBECONFIG=${KUBECONFIG} --net=host --rm -v /etc/kubernetes:/etc/kubernetes
-  $KUBECTL get namespaces -l name=${namespace} | grep ${namespace}; then\n        while\n
-  \           /usr/bin/docker run -e KUBECONFIG=${KUBECONFIG} --net=host --rm -v /etc/kubernetes:/etc/kubernetes
-  $KUBECTL label namespace ${namespace} name=${namespace}\n            [ &#34;$?&#34;
-  -ne &#34;0&#34; ]\n        do\n            echo &#34;failed to label namespace ${namespace},
-  retrying in 5 sec&#34;\n            sleep 5s\n        done\n    fi\ndone\n\n# apply
-  Security bootstrap (RBAC and PSP)\nSECURITY_FILES=&#34;&#34;\nSECURITY_FILES=&#34;${SECURITY_FILES}
-  rbac_bindings.yaml&#34;\nSECURITY_FILES=&#34;${SECURITY_FILES} rbac_roles.yaml&#34;\nSECURITY_FILES=&#34;${SECURITY_FILES}
-  psp_policies.yaml&#34;\nSECURITY_FILES=&#34;${SECURITY_FILES} psp_roles.yaml&#34;\nSECURITY_FILES=&#34;${SECURITY_FILES}
-  psp_binding.yaml&#34;\n\nfor manifest in $SECURITY_FILES\ndo\n    while\n        /usr/bin/docker
-  run -e KUBECONFIG=${KUBECONFIG} --net=host --rm -v /srv:/srv -v /etc/kubernetes:/etc/kubernetes
-  $KUBECTL apply -f /srv/$manifest\n        [ &#34;$?&#34; -ne &#34;0&#34; ]\n    do\n
-  \       echo &#34;failed to apply /srv/$manifest, retrying in 5 sec&#34;\n        sleep
-  5s\n    done\ndone\n\n# check for other master and remove it\nTHIS_MACHINE=$(cat
-  /etc/hostname)\nfor master in $(/usr/bin/docker run -e KUBECONFIG=${KUBECONFIG}
-  --net=host --rm -v /etc/kubernetes:/etc/kubernetes $KUBECTL get nodes --no-headers=true
-  --selector role=master | awk &#39;{print $1}&#39;)\ndo\n    if [ &#34;$master&#34;
-  != &#34;$THIS_MACHINE&#34; ]; then\n        /usr/bin/docker run -e KUBECONFIG=${KUBECONFIG}
-  --net=host --rm -v /etc/kubernetes:/etc/kubernetes $KUBECTL delete node $master\n
-  \   fi\ndone\n\n# wait for etcd dns (return code 35 is bad certificate which is
-  good enough here)\nwhile\n    curl &#34;https://EtcdDomain:1234&#34; -k 2&gt;/dev/null
-  &gt;/dev/null\n    RET_CODE=$?\n    [ &#34;$RET_CODE&#34; -ne &#34;35&#34; ]\ndo\n
-  \   echo &#34;Waiting for etcd to be ready . . &#34;\n    sleep 3s\ndone\n\n# create
-  kube-proxy configmap\nwhile\n    /usr/bin/docker run -e KUBECONFIG=${KUBECONFIG}
-  --net=host --rm -v /srv:/srv $KUBECTL create configmap kube-proxy --from-file=kube-proxy.yaml=/srv/kube-proxy-config.yaml
-  -o yaml --dry-run \\\n    | /usr/bin/docker run  -i --log-driver=none -a stdin -a
-  stdout -a stderr -e KUBECONFIG=${KUBECONFIG} -v /etc/kubernetes:/etc/kubernetes
-  --net=host --rm $KUBECTL apply -n kube-system -f -\n    [ &#34;$?&#34; -ne &#34;0&#34;
-  ]\ndo\n    echo &#34;failed to configure kube-proxy from /srv/kube-proxy-config.yaml,
-  retrying in 5 sec&#34;\n    sleep 5s\ndone\n\n# install kube-proxy\nPROXY_MANIFESTS=&#34;kube-proxy-sa.yaml
-  kube-proxy-ds.yaml&#34;\nfor manifest in $PROXY_MANIFESTS\ndo\n    while\n        /usr/bin/docker
-  run -e KUBECONFIG=${KUBECONFIG} --net=host --rm -v /srv:/srv -v /etc/kubernetes:/etc/kubernetes
-  $KUBECTL apply -f /srv/$manifest\n        [ &#34;$?&#34; -ne &#34;0&#34; ]\n    do\n
-  \       echo &#34;failed to apply /srv/$manifest, retrying in 5 sec&#34;\n        sleep
-  5s\n    done\ndone\necho &#34;kube-proxy successfully installed&#34;\n\n# restart
-  ds to apply config from configmap\n/usr/bin/docker run -e KUBECONFIG=${KUBECONFIG}
-  --net=host --rm -v /etc/kubernetes:/etc/kubernetes $KUBECTL delete pods -l k8s-app=kube-proxy
-  -n kube-system\n\n# apply calico\nCALICO_FILE=&#34;calico-all.yaml&#34;\n\nwhile\n
-  \   /usr/bin/docker run -e KUBECONFIG=${KUBECONFIG} --net=host --rm -v /srv:/srv
-  -v /etc/kubernetes:/etc/kubernetes $KUBECTL apply -f /srv/$CALICO_FILE\n    [ &#34;$?&#34;
-  -ne &#34;0&#34; ]\ndo\n    echo &#34;failed to apply /srv/$manifest, retrying in
-  5 sec&#34;\n    sleep 5s\ndone\n\n# wait for healthy calico - we check for pods
-  - desired vs ready\nwhile\n    # result of this is &#39;eval [ &#34;$DESIRED_POD_COUNT&#34;
-  -eq &#34;$READY_POD_COUNT&#34; ]&#39;\n    /usr/bin/docker run -e KUBECONFIG=${KUBECONFIG}
-  --net=host --rm -v /etc/kubernetes:/etc/kubernetes $KUBECTL -n kube-system  get
-  ds calico-node 2&gt;/dev/null &gt;/dev/null\n    RET_CODE_1=$?\n    eval $(/usr/bin/docker
-  run -e KUBECONFIG=${KUBECONFIG} --net=host --rm -v /etc/kubernetes:/etc/kubernetes
-  $KUBECTL -n kube-system get ds calico-node | tail -1 | awk &#39;{print &#34;[ \\&#34;&#34;
-  $2&#34;\\&#34; -eq \\&#34;&#34;$4&#34;\\&#34; ] &#34;}&#39;)\n    RET_CODE_2=$?\n
-  \   [ &#34;$RET_CODE_1&#34; -ne &#34;0&#34; ] || [ &#34;$RET_CODE_2&#34; -ne &#34;0&#34;
-  ]\ndo\n    echo &#34;Waiting for calico to be ready . . &#34;\n    sleep 3s\ndone\n\n#
-  apply default storage class\nif [ -f /srv/default-storage-class.yaml ]; then\n    while\n
-  \       /usr/bin/docker run -e KUBECONFIG=${KUBECONFIG} --net=host --rm -v /srv:/srv
-  -v /etc/kubernetes:/etc/kubernetes $KUBECTL apply -f /srv/default-storage-class.yaml\n
-  \       [ &#34;$?&#34; -ne &#34;0&#34; ]\n    do\n        echo &#34;failed to apply
-  /srv/default-storage-class.yaml, retrying in 5 sec&#34;\n        sleep 5s\n    done\nelse\n
-  \   echo &#34;no default storage class to apply&#34;\nfi\n\n# apply priority classes:\nPRIORITY_CLASSES_FILE=&#34;priority_classes.yaml&#34;\n\nwhile\n
-  \   /usr/bin/docker run -e KUBECONFIG=${KUBECONFIG} --net=host --rm -v /srv:/srv
-  -v /etc/kubernetes:/etc/kubernetes $KUBECTL apply -f /srv/$PRIORITY_CLASSES_FILE\n
-  \   [ &#34;$?&#34; -ne &#34;0&#34; ]\ndo\n    echo &#34;failed to apply /srv/$PRIORITY_CLASSES_FILE,
-  retrying in 5 sec&#34;\n    sleep 5s\ndone\n\n# apply network policies:\nNETWORK_POLICIES_FILE=&#34;network_policies.yaml&#34;\nNAMESPACES=&#34;kube-system
-  giantswarm&#34;\nfor namespace in ${NAMESPACES}; do\n    while\n      /usr/bin/docker
-  run -e KUBECONFIG=${KUBECONFIG} --net=host --rm -v /srv:/srv -v /etc/kubernetes:/etc/kubernetes
-  $KUBECTL apply -f /srv/$NETWORK_POLICIES_FILE -n $namespace\n      [ &#34;$?&#34;
-  -ne &#34;0&#34; ]\n    do\n      echo &#34;failed to apply /srv/$NETWORK_POLICIES_FILE,
-  retrying in 5 sec&#34;\n      sleep 5s\n    done\ndone\n\n# apply k8s addons\nMANIFESTS=&#34;&#34;\nMANIFESTS=&#34;${MANIFESTS}
-  ingress-controller-svc.yaml&#34;\nfor manifest in $MANIFESTS\ndo\n    while\n        /usr/bin/docker
-  run -e KUBECONFIG=${KUBECONFIG} --net=host --rm -v /srv:/srv -v /etc/kubernetes:/etc/kubernetes
-  $KUBECTL apply -f /srv/$manifest\n        [ &#34;$?&#34; -ne &#34;0&#34; ]\n    do\n
-  \       echo &#34;failed to apply /srv/$manifest, retrying in 5 sec&#34;\n        sleep
-  5s\n    done\ndone\necho &#34;Addons successfully installed&#34;\n\"\n\n    - path:
-  /etc/kubernetes/kubeconfig/addons.yaml\n      filesystem: root\n      mode: 0644\n
-  \     contents:\n        source: \"data:text/plain;charset=utf-8;base64,apiVersion:
-  v1\nkind: Config\nusers:\n- name: proxy\n  user:\n    client-certificate: /etc/kubernetes/ssl/apiserver-crt.pem\n
-  \   client-key: /etc/kubernetes/ssl/apiserver-key.pem\nclusters:\n- name: local\n
-  \ cluster:\n    certificate-authority: /etc/kubernetes/ssl/apiserver-ca.pem\n    server:
-  https://APIDomain\ncontexts:\n- context:\n    cluster: local\n    user: proxy\n
-  \ name: service-account-context\ncurrent-context: service-account-context\n\"\n\n
-  \   - path: /etc/kubernetes/config/proxy-kubeconfig.yaml\n      filesystem: root\n
-  \     mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,apiVersion:
-  v1\nkind: Config\nusers:\n- name: proxy\n  user:\n    client-certificate: /etc/kubernetes/ssl/apiserver-crt.pem\n
-  \   client-key: /etc/kubernetes/ssl/apiserver-key.pem\nclusters:\n- name: local\n
-  \ cluster:\n    certificate-authority: /etc/kubernetes/ssl/apiserver-ca.pem\n    server:
-  https://APIDomain\ncontexts:\n- context:\n    cluster: local\n    user: proxy\n
-  \ name: service-account-context\ncurrent-context: service-account-context\n\"\n\n
-  \   - path: /etc/kubernetes/kubeconfig/kube-proxy.yaml\n      filesystem: root\n
-  \     mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,apiVersion:
-  v1\nkind: Config\nusers:\n- name: proxy\n  user:\n    client-certificate: /etc/kubernetes/ssl/apiserver-crt.pem\n
-  \   client-key: /etc/kubernetes/ssl/apiserver-key.pem\nclusters:\n- name: local\n
-  \ cluster:\n    certificate-authority: /etc/kubernetes/ssl/apiserver-ca.pem\n    server:
-  https://APIDomain\ncontexts:\n- context:\n    cluster: local\n    user: proxy\n
-  \ name: service-account-context\ncurrent-context: service-account-context\n\"\n\n
-  \   - path: /etc/kubernetes/config/kubelet.yaml.tmpl\n      filesystem: root\n      mode:
-  0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,kind:
-  KubeletConfiguration\napiVersion: kubelet.config.k8s.io/v1beta1\naddress: ${DEFAULT_IPV4}\nport:
-  10250\nhealthzBindAddress: ${DEFAULT_IPV4}\nhealthzPort: 10248\nclusterDNS:\n  -
-  K8sDNSIP\nclusterDomain: K8sDomain\nstaticPodPath: /etc/kubernetes/manifests\nevictionSoft:\n
-  \ memory.available: &#34;500Mi&#34;\nevictionHard:\n  memory.available: &#34;200Mi&#34;\n
-  \ imagefs.available: &#34;15%&#34;\nevictionSoftGracePeriod:\n  memory.available:
-  &#34;5s&#34;\nevictionMaxPodGracePeriod: 60\nkubeReserved:\n  cpu: 350m\n  memory:
-  1280Mi\n  ephemeral-storage: 1024Mi\nkubeReservedCgroup: /kubereserved.slice\nruntimeCgroups:
-  /kubereserved.slice\nsystemReserved:\n  cpu: 250m\n  memory: 384Mi\nsystemReservedCgroup:
-  /system.slice\nauthentication:\n  anonymous:\n    enabled: true # Defaults to false
-  as of 1.10\n  webhook:\n    enabled: false # Deafults to true as of 1.10\nauthorization:\n
-  \ mode: AlwaysAllow # Deafults to webhook as of 1.10\nfeatureGates:\n  TTLAfterFinished:
-  true\n\"\n\n    - path: /etc/kubernetes/kubeconfig/kubelet.yaml\n      filesystem:
-  root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,apiVersion:
-  v1\nkind: Config\nusers:\n- name: kubelet\n  user:\n    client-certificate: /etc/kubernetes/ssl/apiserver-crt.pem\n
-  \   client-key: /etc/kubernetes/ssl/apiserver-key.pem\nclusters:\n- name: local\n
-  \ cluster:\n    certificate-authority: /etc/kubernetes/ssl/apiserver-ca.pem\n    server:
-  https://APIDomain\ncontexts:\n- context:\n    cluster: local\n    user: kubelet\n
-  \ name: service-account-context\ncurrent-context: service-account-context\n\"\n\n
-  \   - path: /etc/kubernetes/kubeconfig/controller-manager.yaml\n      filesystem:
-  root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,apiVersion:
-  v1\nkind: Config\nusers:\n- name: controller-manager\n  user:\n    client-certificate:
-  /etc/kubernetes/ssl/apiserver-crt.pem\n    client-key: /etc/kubernetes/ssl/apiserver-key.pem\nclusters:\n-
-  name: local\n  cluster:\n    certificate-authority: /etc/kubernetes/ssl/apiserver-ca.pem\n
-  \   server: https://APIDomain\ncontexts:\n- context:\n    cluster: local\n    user:
-  controller-manager\n  name: service-account-context\ncurrent-context: service-account-context\n\"\n\n
-  \   - path: /etc/kubernetes/config/scheduler.yaml\n      filesystem: root\n      mode:
-  0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,kind:
-  KubeSchedulerConfiguration\nalgorithmSource:\n  provider: DefaultProvider\napiVersion:
-  kubescheduler.config.k8s.io/v1alpha1\nclientConnection:\n  kubeconfig: /etc/kubernetes/kubeconfig/scheduler.yaml\nfailureDomains:
-  kubernetes.io/hostname,failure-domain.beta.kubernetes.io/zone,failure-domain.beta.kubernetes.io/region\nhardPodAffinitySymmetricWeight:
-  1\n\"\n\n    - path: /etc/kubernetes/kubeconfig/scheduler.yaml\n      filesystem:
-  root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,apiVersion:
-  v1\nkind: Config\nusers:\n- name: scheduler\n  user:\n    client-certificate: /etc/kubernetes/ssl/apiserver-crt.pem\n
-  \   client-key: /etc/kubernetes/ssl/apiserver-key.pem\nclusters:\n- name: local\n
-  \ cluster:\n    certificate-authority: /etc/kubernetes/ssl/apiserver-ca.pem\n    server:
-  https://APIDomain\ncontexts:\n- context:\n    cluster: local\n    user: scheduler\n
-  \ name: service-account-context\ncurrent-context: service-account-context\n\"\n\n
-  \   - path: /etc/kubernetes/encryption/k8s-encryption-config.yaml\n      filesystem:
-  root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,kind:
-  EncryptionConfiguration\napiVersion: apiserver.config.k8s.io/v1\nresources:\n  -
-  resources:\n    - secrets\n    providers:\n    - aescbc:\n        keys:\n        -
-  name: key1\n          secret: \"\n    - path: /etc/kubernetes/policies/audit-policy.yaml\n
-  \     filesystem: root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,apiVersion:
-  audit.k8s.io/v1\nkind: Policy\nrules:\n  # The following requests were manually
-  identified as high-volume and low-risk,\n  # so drop them.\n  - level: None\n    users:
-  [&#34;system:kube-proxy&#34;]\n    verbs: [&#34;watch&#34;]\n    resources:\n      -
-  group: &#34;&#34; # core\n        resources: [&#34;endpoints&#34;, &#34;services&#34;,
-  &#34;services/status&#34;]\n  - level: None\n    # Ingress controller reads &#39;configmaps/ingress-uid&#39;
-  through the unsecured port.\n    users: [&#34;system:unsecured&#34;]\n    namespaces:
-  [&#34;kube-system&#34;]\n    verbs: [&#34;get&#34;]\n    resources:\n      - group:
-  &#34;&#34; # core\n        resources: [&#34;configmaps&#34;]\n  - level: None\n
-  \   users: [&#34;kubelet&#34;] # legacy kubelet identity\n    verbs: [&#34;get&#34;]\n
-  \   resources:\n      - group: &#34;&#34; # core\n        resources: [&#34;nodes&#34;,
-  &#34;nodes/status&#34;]\n  - level: None\n    userGroups: [&#34;system:nodes&#34;]\n
-  \   verbs: [&#34;get&#34;]\n    resources:\n      - group: &#34;&#34; # core\n        resources:
-  [&#34;nodes&#34;, &#34;nodes/status&#34;]\n  - level: None\n    users:\n      -
-  system:kube-controller-manager\n      - system:kube-scheduler\n      - system:serviceaccount:kube-system:endpoint-controller\n
-  \   verbs: [&#34;get&#34;, &#34;update&#34;]\n    namespaces: [&#34;kube-system&#34;]\n
-  \   resources:\n      - group: &#34;&#34; # core\n        resources: [&#34;endpoints&#34;]\n
-  \ - level: None\n    users: [&#34;system:apiserver&#34;]\n    verbs: [&#34;get&#34;]\n
-  \   resources:\n      - group: &#34;&#34; # core\n        resources: [&#34;namespaces&#34;,
-  &#34;namespaces/status&#34;, &#34;namespaces/finalize&#34;]\n  - level: None\n    users:
-  [&#34;system:serviceaccount:kube-system:cluster-autoscaler&#34;]\n    verbs: [&#34;get&#34;,
-  &#34;update&#34;]\n    namespaces: [&#34;kube-system&#34;]\n    resources:\n      -
-  group: &#34;&#34; # core\n        resources: [&#34;configmaps&#34;, &#34;endpoints&#34;]\n
-  \ # Don&#39;t log HPA fetching metrics.\n  - level: None\n    users:\n      - system:kube-controller-manager\n
-  \   verbs: [&#34;get&#34;, &#34;list&#34;]\n    resources:\n      - group: &#34;metrics.k8s.io&#34;\n
-  \ # Don&#39;t log these read-only URLs.\n  - level: None\n    nonResourceURLs:\n
-  \     - /healthz*\n      - /version\n      - /swagger*\n  # Don&#39;t log events
-  requests.\n  - level: None\n    resources:\n      - group: &#34;&#34; # core\n        resources:
-  [&#34;events&#34;]\n  # node and pod status calls from nodes are high-volume and
-  can be large, don&#39;t log responses for expected updates from nodes\n  - level:
-  Request\n    users:\n      [\n        &#34;kubelet&#34;,\n        &#34;system:node-problem-detector&#34;,\n
-  \       &#34;system:serviceaccount:kube-system:node-problem-detector&#34;,\n      ]\n
-  \   verbs: [&#34;update&#34;, &#34;patch&#34;]\n    resources:\n      - group: &#34;&#34;
-  # core\n        resources: [&#34;nodes/status&#34;, &#34;pods/status&#34;]\n    omitStages:\n
-  \     - &#34;RequestReceived&#34;\n  - level: Request\n    userGroups: [&#34;system:nodes&#34;]\n
-  \   verbs: [&#34;update&#34;, &#34;patch&#34;]\n    resources:\n      - group: &#34;&#34;
-  # core\n        resources: [&#34;nodes/status&#34;, &#34;pods/status&#34;]\n    omitStages:\n
-  \     - &#34;RequestReceived&#34;\n  # deletecollection calls can be large, don&#39;t
-  log responses for expected namespace deletions\n  - level: Request\n    users: [&#34;system:serviceaccount:kube-system:namespace-controller&#34;]\n
-  \   verbs: [&#34;deletecollection&#34;]\n    omitStages:\n      - &#34;RequestReceived&#34;\n
-  \ # Secrets, ConfigMaps, and TokenReviews can contain sensitive &amp; binary data,\n
-  \ # so only log at the Metadata level.\n  - level: Metadata\n    resources:\n      -
-  group: &#34;&#34; # core\n        resources: [&#34;secrets&#34;, &#34;configmaps&#34;]\n
-  \     - group: authentication.k8s.io\n        resources: [&#34;tokenreviews&#34;]\n
-  \   omitStages:\n      - &#34;RequestReceived&#34;\n  # Get repsonses can be large;
-  skip them.\n  - level: Request\n    verbs: [&#34;get&#34;, &#34;list&#34;, &#34;watch&#34;]\n
-  \   resources:\n      - group: &#34;&#34; # core\n      - group: &#34;admissionregistration.k8s.io&#34;\n
-  \     - group: &#34;apiextensions.k8s.io&#34;\n      - group: &#34;apiregistration.k8s.io&#34;\n
-  \     - group: &#34;apps&#34;\n      - group: &#34;authentication.k8s.io&#34;\n
-  \     - group: &#34;authorization.k8s.io&#34;\n      - group: &#34;autoscaling&#34;\n
-  \     - group: &#34;batch&#34;\n      - group: &#34;certificates.k8s.io&#34;\n      -
-  group: &#34;extensions&#34;\n      - group: &#34;metrics.k8s.io&#34;\n      - group:
-  &#34;networking.k8s.io&#34;\n      - group: &#34;policy&#34;\n      - group: &#34;rbac.authorization.k8s.io&#34;\n
-  \     - group: &#34;scheduling.k8s.io&#34;\n      - group: &#34;settings.k8s.io&#34;\n
-  \     - group: &#34;storage.k8s.io&#34;\n    omitStages:\n      - &#34;RequestReceived&#34;\n
-  \ # Default level for known APIs\n  - level: RequestResponse\n    resources:\n      -
-  group: &#34;&#34; # core\n      - group: &#34;admissionregistration.k8s.io&#34;\n
-  \     - group: &#34;apiextensions.k8s.io&#34;\n      - group: &#34;apiregistration.k8s.io&#34;\n
-  \     - group: &#34;apps&#34;\n      - group: &#34;authentication.k8s.io&#34;\n
-  \     - group: &#34;authorization.k8s.io&#34;\n      - group: &#34;autoscaling&#34;\n
-  \     - group: &#34;batch&#34;\n      - group: &#34;certificates.k8s.io&#34;\n      -
-  group: &#34;extensions&#34;\n      - group: &#34;metrics.k8s.io&#34;\n      - group:
-  &#34;networking.k8s.io&#34;\n      - group: &#34;policy&#34;\n      - group: &#34;rbac.authorization.k8s.io&#34;\n
-  \     - group: &#34;scheduling.k8s.io&#34;\n      - group: &#34;settings.k8s.io&#34;\n
-  \     - group: &#34;storage.k8s.io&#34;\n    omitStages:\n      - &#34;RequestReceived&#34;\n
-  \ # Default level for all other requests.\n  - level: Metadata\n    omitStages:\n
-  \     - &#34;RequestReceived&#34;\n\"\n    - path: /etc/kubernetes/manifests/k8s-api-healthz.yaml\n
-  \     filesystem: root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,apiVersion:
-  v1\nkind: Pod\nmetadata:\n  name: k8s-api-healthz\n  namespace: kube-system\n  annotations:\n
-  \   scheduler.alpha.kubernetes.io/critical-pod: &#39;&#39;\nspec:\n  hostNetwork:
-  true\n  priorityClassName: system-node-critical\n  containers:\n    - name: k8s-api-healthz\n
-  \     env:\n      - name: HOST_IP\n        valueFrom:\n          fieldRef:\n            fieldPath:
-  status.podIP\n      command:\n        - /k8s-api-healthz\n        - --api-endpoint=&#34;https://$(HOST_IP):443/healthz&#34;\n
-  \     image: quay.io/giantswarm/k8s-api-healthz:1c0cdf1ed5ee18fdf59063ecdd84bf3787f80fac\n
-  \     resources:\n        requests:\n          cpu: 50m\n          memory: 20Mi\n
-  \     volumeMounts:\n      - mountPath: /etc/kubernetes/ssl/\n        name: ssl-certs-kubernetes\n
-  \       readOnly: true\n  volumes:\n  - hostPath:\n      path: /etc/kubernetes/ssl\n
-  \   name: ssl-certs-kubernetes\n\"\n\n    - path: /etc/kubernetes/manifests/k8s-api-server.yaml\n
-  \     filesystem: root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,apiVersion:
-  v1\nkind: Pod\nmetadata:\n  name: k8s-api-server\n  namespace: kube-system\n  labels:\n
-  \   k8s-app: api-server\n    tier: control-plane\n  annotations:\n    scheduler.alpha.kubernetes.io/critical-pod:
-  &#39;&#39;\nspec:\n  hostNetwork: true\n  priorityClassName: system-node-critical\n
-  \ containers:\n  - name: k8s-api-server\n    image: RegistryDomain/K8sImage\n    env:\n
-  \   - name: HOST_IP\n      valueFrom:\n        fieldRef:\n          fieldPath: status.podIP\n
-  \   command:\n    - /hyperkube\n    - kube-apiserver\n    - --allow-privileged=true\n
-  \   - --anonymous-auth=false\n    - --insecure-port=0\n    - --kubelet-https=true\n
-  \   - --kubelet-preferred-address-types=InternalIP\n    - --secure-port=9001\n    -
-  --bind-address=0.0.0.0\n    - --etcd-prefix=EtcdPrefix\n    - --profiling=false\n
-  \   - --service-account-lookup=true\n    - --authorization-mode=RBAC\n    - --feature-gates=TTLAfterFinished=true\n
-  \   - --enable-admission-plugins=NamespaceLifecycle,LimitRanger,ServiceAccount,ResourceQuota,DefaultStorageClass,PersistentVolumeClaimResize,PodSecurityPolicy,Priority,DefaultTolerationSeconds,MutatingAdmissionWebhook,ValidatingAdmissionWebhook\n
-  \   - --cloud-provider=\"\n\n    - path: /etc/kubernetes/manifests/k8s-controller-manager.yaml\n
-  \     filesystem: root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,apiVersion:
-  v1\nkind: Pod\nmetadata:\n  name: k8s-controller-manager\n  namespace: kube-system\n
-  \ labels:\n    k8s-app: controller-manager\n    tier: control-plane\n  annotations:\n
-  \   scheduler.alpha.kubernetes.io/critical-pod: &#39;&#39;\nspec:\n  hostNetwork:
-  true\n  priorityClassName: system-node-critical\n  containers:\n  - name: k8s-controller-manager\n
-  \   image: RegistryDomain/K8sImage\n    command:\n    - /hyperkube\n    - kube-controller-manager\n
-  \   - --logtostderr=true\n    - --v=2\n    - --cloud-provider=aws\n    - --terminated-pod-gc-threshold=10\n
-  \   - --use-service-account-credentials=true\n    - --kubeconfig=/etc/kubernetes/kubeconfig/controller-manager.yaml\n
-  \   - --feature-gates=TTLAfterFinished=true\n    - --root-ca-file=/etc/kubernetes/ssl/apiserver-ca.pem\n
-  \   - --service-account-private-key-file=/etc/kubernetes/ssl/service-account-key.pem\n
-  \   resources:\n      requests:\n        cpu: 200m\n        memory: 200Mi\n    livenessProbe:\n
-  \     httpGet:\n        host: 127.0.0.1\n        path: /healthz\n        port: 10251\n
-  \     initialDelaySeconds: 15\n      timeoutSeconds: 15\n    volumeMounts:\n    -
-  mountPath: /etc/kubernetes/config/\n      name: k8s-config\n      readOnly: true\n
-  \   - mountPath: /etc/kubernetes/kubeconfig/\n      name: k8s-kubeconfig\n      readOnly:
-  true\n    - mountPath: /etc/kubernetes/secrets/\n      name: k8s-secrets\n      readOnly:
-  true\n    - mountPath: /etc/kubernetes/ssl/\n      name: ssl-certs-kubernetes\n
-  \     readOnly: true\n  volumes:\n  - hostPath:\n      path: /etc/kubernetes/config\n
-  \   name: k8s-config\n  - hostPath:\n      path: /etc/kubernetes/kubeconfig\n    name:
-  k8s-kubeconfig\n  - hostPath:\n      path: /etc/kubernetes/secrets\n    name: k8s-secrets\n
-  \ - hostPath:\n      path: /etc/kubernetes/ssl\n    name: ssl-certs-kubernetes\n\"\n\n
-  \   - path: /etc/kubernetes/manifests/k8s-scheduler.yaml\n      filesystem: root\n
-  \     mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,apiVersion:
-  v1\nkind: Pod\nmetadata:\n  name: k8s-scheduler\n  namespace: kube-system\n  labels:\n
-  \   k8s-app: scheduler\n    tier: control-plane\n  annotations:\n    scheduler.alpha.kubernetes.io/critical-pod:
-  &#39;&#39;\nspec:\n  hostNetwork: true\n  priorityClassName: system-node-critical\n
-  \ containers:\n  - name: k8s-scheduler\n    image: RegistryDomain/K8sImage\n    command:\n
-  \   - /hyperkube\n    - kube-scheduler\n    - --feature-gates=TTLAfterFinished=true\n
-  \   - --config=/etc/kubernetes/config/scheduler.yaml\n    - --v=2\n    resources:\n
-  \     requests:\n        cpu: 100m\n        memory: 100Mi\n    livenessProbe:\n
-  \     httpGet:\n        host: 127.0.0.1\n        path: /healthz\n        port: 10251\n
-  \     initialDelaySeconds: 15\n      timeoutSeconds: 15\n    volumeMounts:\n    -
-  mountPath: /etc/kubernetes/config/\n      name: k8s-config\n      readOnly: true\n
-  \   - mountPath: /etc/kubernetes/kubeconfig/\n      name: k8s-kubeconfig\n      readOnly:
-  true\n    - mountPath: /etc/kubernetes/ssl/\n      name: ssl-certs-kubernetes\n
-  \     readOnly: true\n  volumes:\n  - hostPath:\n      path: /etc/kubernetes/config\n
-  \   name: k8s-config\n  - hostPath:\n      path: /etc/kubernetes/kubeconfig\n    name:
-  k8s-kubeconfig\n  - hostPath:\n      path: /etc/kubernetes/ssl\n    name: ssl-certs-kubernetes\n\"\n\n
-  \   - path: /etc/ssh/sshd_config\n      filesystem: root\n      mode: 0644\n      contents:\n
-  \       source: \"data:text/plain;charset=utf-8;base64,# Use most defaults for sshd
-  configuration.\nSubsystem sftp internal-sftp\nClientAliveInterval 180\nUseDNS no\nUsePAM
-  yes\nPrintLastLog no # handled by PAM\nPrintMotd no # handled by PAM\n# Non defaults
-  (#100)\nClientAliveCountMax 2\nPasswordAuthentication no\nTrustedUserCAKeys /etc/ssh/trusted-user-ca-keys.pem\nMaxAuthTries
-  5\nLoginGraceTime 60\nAllowTcpForwarding no\nAllowAgentForwarding no\n\"\n\n    -
-  path: /etc/sysctl.d/hardening.conf\n      filesystem: root\n      mode: 0600\n      contents:\n
-  \       source: \"data:text/plain;charset=utf-8;base64,fs.inotify.max_user_watches
-  = 16384\n# Default is 128, doubling for nodes with many pods\n# See https://github.com/giantswarm/giantswarm/issues/7711\nfs.inotify.max_user_instances
-  = 8192\nkernel.kptr_restrict = 2\nkernel.sysrq = 0\nnet.ipv4.conf.all.log_martians
-  = 1\nnet.ipv4.conf.all.send_redirects = 0\nnet.ipv4.conf.default.accept_redirects
-  = 0\nnet.ipv4.conf.default.log_martians = 1\nnet.ipv4.tcp_timestamps = 0\nnet.ipv6.conf.all.accept_redirects
-  = 0\nnet.ipv6.conf.default.accept_redirects = 0\n# Increased mmapfs because some
-  applications, like ES, need higher limit to store data properly\nvm.max_map_count
-  = 262144\n# Ingress controller performance improvements\n# See https://github.com/kubernetes/ingress-nginx/issues/1939\nnet.core.somaxconn=32768\nnet.ipv4.ip_local_port_range=1024
-  65535\nnet.ipv4.conf.all.rp_filter = 1\nnet.ipv4.conf.all.arp_ignore = 1\nnet.ipv4.conf.all.arp_announce
-  = 2\n\"\n\n    - path: /etc/audit/rules.d/10-docker.rules\n      filesystem: root\n
-  \     mode: 0600\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,-w
-  /usr/bin/docker -k docker\n-w /var/lib/docker -k docker\n-w /etc/docker -k docker\n-w
-  /etc/systemd/system/docker.service.d/10-giantswarm-extra-args.conf -k docker\n-w
-  /etc/systemd/system/docker.service.d/01-wait-docker.conf -k docker\n-w /usr/lib/systemd/system/docker.service
-  -k docker\n-w /usr/lib/systemd/system/docker.socket -k docker\n\"\n\n    - path:
-  /etc/modules-load.d/ip_vs.conf\n      filesystem: root\n      mode: 0600\n      contents:\n
-  \       source: \"data:text/plain;charset=utf-8;base64,ip_vs\nip_vs_rr\nip_vs_wrr\nip_vs_sh\nnf_conntrack_ipv4\n\"\n\n
-  \   - path: /opt/install-debug-tools\n      filesystem: root\n      mode: 0544\n
-  \     contents:\n        source: \"data:text/plain;charset=utf-8;base64,#!/bin/bash\nset
-  -eu\n\nmkdir -p /opt/bin\n\n# download calicoctl\nCALICOCTL_VERSION=v3.9.1\nwget
-  https://github.com/projectcalico/calicoctl/releases/download/${CALICOCTL_VERSION}/calicoctl-linux-amd64\nmv
-  calicoctl-linux-amd64 /opt/bin/calicoctl\nchmod &#43;x /opt/bin/calicoctl\n\n# download
-  crictl\nCRICTL_VERSION=v1.15.0\nwget https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz\ntar
-  xvf crictl-${CRICTL_VERSION}-linux-amd64.tar.gz\nmv crictl /opt/bin/crictl\nchmod
-  &#43;x /opt/bin/crictl\nrm crictl-${CRICTL_VERSION}-linux-amd64.tar.gz\n\"\n\n    -
-  path: /etc/calico/calicoctl.cfg\n      filesystem: root\n      mode: 0644\n      contents:\n
-  \       source: \"data:text/plain;charset=utf-8;base64,apiVersion: projectcalico.org/v3\nkind:
-  CalicoAPIConfig\nmetadata:\nspec:\n  etcdEndpoints: https://EtcdDomain:1234\n  etcdKeyFile:
-  /etc/kubernetes/ssl/etcd/server-key.pem\n  etcdCertFile: /etc/kubernetes/ssl/etcd/server-crt.pem\n
-  \ etcdCACertFile: /etc/kubernetes/ssl/etcd/server-ca.pem\n\"\n\n    - path: /etc/crictl.yaml\n
-  \     filesystem: root\n      mode: 0644\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,runtime-endpoint:
-  unix:///var/run/dockershim/dockershim.sock\nimage-endpoint: unix:///var/run/dockershim/dockershim.sock\ntimeout:
-  10\ndebug: false\n\"\n\n    - path: /etc/profile.d/setup-etcdctl.sh\n      filesystem:
-  root\n      mode: 0444\n      contents:\n        source: \"data:text/plain;charset=utf-8;base64,alias
-  etcdctl=&#34;ETCDCTL_API=3 \\\n    ETCDCTL_ENDPOINTS=https://EtcdDomain:1234 \\\n
-  \   ETCDCTL_CACERT=/etc/kubernetes/ssl/etcd/client-ca.pem \\\n    ETCDCTL_CERT=/etc/kubernetes/ssl/etcd/client-crt.pem
-  \\\n    ETCDCTL_KEY=/etc/kubernetes/ssl/etcd/client-key.pem \\\n    etcdctl&#34;\n\"\n"
+ignition:
+  version: "2.2.0"
+passwd:
+  users:
+    - name: giantswarm
+      shell: "/bin/bash"
+      uid: 1000
+      groups:
+        - "sudo"
+        - "docker"
+      sshAuthorizedKeys:
+        - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCuJvxy3FKGrfJ4XB5exEdKXiqqteXEPFzPtex6dC0lHyigtO7l+NXXbs9Lga2+Ifs0Tza92MRhg/FJ+6za3oULFo7+gDyt86DIkZkMFdnSv9+YxYe+g4zqakSV+bLVf2KP6krUGJb7t4Nb+gGH62AiUx+58Onxn5rvYC0/AXOYhkAiH8PydXTDJDPhSA/qWSWEeCQistpZEDFnaVi0e7uq/k3hWJ+v9Gz0qqChHKWWOYp3W6aiIE3G6gLOXNEBdWRrjK6xmrSmo9Toqh1G7iIV0Y6o9w5gIHJxf6+8X70DCuVDx9OLHmjjMyGnd+1c3yTFMUdugtvmeiGWE0E7ZjNSNIqWlnvYJ0E1XPBiyQ7nhitOtVvPC4kpRP7nOFiCK9n8Lr3z3p4v3GO0FU3/qvLX+ECOrYK316gtwSJMd+HIouCbaJaFGvT34peaq1uluOP/JE+rFOnszZFpCYgTY2b4lWjf2krkI/a/3NDJPnRpjoE3RjmbepkZeIdOKTCTH1xYZ3O8dWKRX8X4xORvKJO+oV2UdoZlFa/WJTmq23z4pCVm0UWDYR5C2b9fHwxh/xrPT7CQ0E+E9wmeOvR4wppDMseGQCL+rSzy2AYiQ3D8iQxk0r6T+9MyiRCfuY73p63gB3m37jMQSLHvm77MkRnYcBy61Qxk+y+ls2D0xJfqxw== giantswarm"
+
+systemd:
+  units:
+  # Start - manual management for cgroup structure
+  - name: kubereserved.slice
+    path: /etc/systemd/system/kubereserved.slice
+    content: |
+            [Unit]
+      Description=Limited resources slice for Kubernetes services
+      Documentation=man:systemd.special(7)
+      DefaultDependencies=no
+      Before=slices.target
+      Requires=-.slice
+      After=-.slice
+      
+  # End - manual management for cgroup structure
+  - name: audit-rules.service
+    enabled: true
+    dropins:
+    - name: 10-Wait-For-Docker.conf
+      contents: |
+                  [Service]
+          ExecStartPre=/bin/bash -c &#34;while [ ! -f /etc/audit/rules.d/10-docker.rules ]; do echo &#39;Waiting for /etc/audit/rules.d/10-docker.rules to be written&#39; &amp;&amp; sleep 1; done&#34;
+          
+  - name: set-certs-group-owner-permission-giantswarm.service
+    enabled: true
+    contents: |
+            [Unit]
+      Description=Change group owner for certificates to giantswarm
+      Wants=k8s-kubelet.service k8s-setup-network-env.service
+      After=k8s-kubelet.service k8s-setup-network-env.service
+      [Service]
+      Type=oneshot
+      ExecStart=/bin/sh -c &#34;find /etc/kubernetes/ssl -name &#39;*.pem&#39; -print | xargs -i  sh -c &#39;chown root:giantswarm {} &amp;&amp; chmod 640 {}&#39;&#34;
+      [Install]
+      WantedBy=multi-user.target
+      
+  - name: wait-for-domains.service
+    enabled: true
+    contents: |
+            [Unit]
+      Description=Wait for etcd and k8s API domains to be available
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/wait-for-domains
+      [Install]
+      WantedBy=multi-user.target
+      
+  - name: os-hardeing.service
+    enabled: true
+    contents: |
+            [Unit]
+      Description=Apply os hardening
+      [Service]
+      Type=oneshot
+      ExecStartPre=-/bin/bash -c &#34;gpasswd -d core rkt; gpasswd -d core docker; gpasswd -d core wheel&#34;
+      ExecStartPre=/bin/bash -c &#34;until [ -f &#39;/etc/sysctl.d/hardening.conf&#39; ]; do echo Waiting for sysctl file; sleep 1s;done;&#34;
+      ExecStart=/usr/sbin/sysctl -p /etc/sysctl.d/hardening.conf
+      [Install]
+      WantedBy=multi-user.target
+      
+  - name: k8s-setup-kubelet-config.service
+    enabled: true
+    contents: |
+            [Unit]
+      Description=k8s-setup-kubelet-config Service
+      After=k8s-setup-network-env.service docker.service
+      Requires=k8s-setup-network-env.service docker.service
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      TimeoutStartSec=0
+      EnvironmentFile=/etc/network-environment
+      ExecStart=/bin/bash -c &#39;/usr/bin/envsubst &lt;/etc/kubernetes/config/kubelet.yaml.tmpl &gt;/etc/kubernetes/config/kubelet.yaml&#39;
+      [Install]
+      WantedBy=multi-user.target
+      
+  - name: containerd.service
+    enabled: true
+    contents: |
+    dropins:
+      - name: 10-change-cgroup.conf
+        contents: |
+                    [Service]
+          CPUAccounting=true
+          MemoryAccounting=true
+          Slice=kubereserved.slice
+          
+  - name: docker.service
+    enabled: true
+    contents: |
+    dropins:
+      - name: 10-giantswarm-extra-args.conf
+        contents: |
+                [Service]
+      CPUAccounting=true
+      MemoryAccounting=true
+      Slice=kubereserved.slice
+      Environment=&#34;DOCKER_CGROUPS=--exec-opt native.cgroupdriver=cgroupfs --cgroup-parent=/kubereserved.slice --log-opt max-size=25m --log-opt max-file=2 --log-opt labels=io.kubernetes.container.hash,io.kubernetes.container.name,io.kubernetes.pod.name,io.kubernetes.pod.namespace,io.kubernetes.pod.uid&#34;
+      Environment=&#34;DOCKER_OPT_BIP=--bip=DockerDaemonCIDR&#34;
+      Environment=&#34;DOCKER_OPTS=--live-restore --icc=false --userland-proxy=false&#34;
+      
+  - name: k8s-setup-network-env.service
+    enabled: true
+    contents: |
+            [Unit]
+      Description=k8s-setup-network-env Service
+      Wants=network.target docker.service wait-for-domains.service
+      After=network.target docker.service wait-for-domains.service
+      [Service]
+      Type=oneshot
+      TimeoutStartSec=0
+      Environment=&#34;IMAGE=DockerNetworkSetupImage&#34;
+      Environment=&#34;NAME=%p.service&#34;
+      ExecStartPre=/usr/bin/mkdir -p /opt/bin/
+      ExecStartPre=/usr/bin/docker pull $IMAGE
+      ExecStartPre=-/usr/bin/docker stop -t 10 $NAME
+      ExecStartPre=-/usr/bin/docker rm -f $NAME
+      ExecStart=/usr/bin/docker run --rm --net=host -v /etc:/etc --name $NAME $IMAGE
+      ExecStop=-/usr/bin/docker stop -t 10 $NAME
+      ExecStopPost=-/usr/bin/docker rm -f $NAME
+      [Install]
+      WantedBy=multi-user.target
+      
+  - name: etcd3.service
+    enabled: true
+    contents: |
+            [Unit]
+      Description=etcd3
+      Wants=k8s-setup-network-env.service
+      After=k8s-setup-network-env.service
+      Conflicts=etcd.service etcd2.service
+      StartLimitIntervalSec=0
+      [Service]
+      Restart=always
+      RestartSec=0
+      TimeoutStopSec=10
+      LimitNOFILE=40000
+      CPUAccounting=true
+      MemoryAccounting=true
+      Slice=kubereserved.slice
+      Environment=IMAGE=RegistryDomain/EtcdImage
+      Environment=NAME=%p.service
+      EnvironmentFile=/etc/network-environment
+      ExecStartPre=-/usr/bin/docker stop  $NAME
+      ExecStartPre=-/usr/bin/docker rm  $NAME
+      ExecStartPre=-/usr/bin/docker pull $IMAGE
+      ExecStartPre=/bin/bash -c &#34;while [ ! -f /etc/kubernetes/ssl/etcd/server-ca.pem ]; do echo &#39;Waiting for /etc/kubernetes/ssl/etcd/server-ca.pem to be written&#39; &amp;&amp; sleep 1; done&#34;
+      ExecStartPre=/bin/bash -c &#34;while [ ! -f /etc/kubernetes/ssl/etcd/server-crt.pem ]; do echo &#39;Waiting for /etc/kubernetes/ssl/etcd/server-crt.pem to be written&#39; &amp;&amp; sleep 1; done&#34;
+      ExecStartPre=/bin/bash -c &#34;while [ ! -f /etc/kubernetes/ssl/etcd/server-key.pem ]; do echo &#39;Waiting for /etc/kubernetes/ssl/etcd/server-key.pem to be written&#39; &amp;&amp; sleep 1; done&#34;
+      ExecStart=/usr/bin/docker run \
+          -v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt \
+          -v /etc/kubernetes/ssl/etcd/:/etc/etcd \
+          -v /var/lib/etcd/:/var/lib/etcd  \
+          --net=host  \
+          --name $NAME \
+          $IMAGE \
+          etcd \
+          --name etcd0 \
+          --trusted-ca-file /etc/etcd/server-ca.pem \
+          --cert-file /etc/etcd/server-crt.pem \
+          --key-file /etc/etcd/server-key.pem\
+          --client-cert-auth=true \
+          --peer-trusted-ca-file /etc/etcd/server-ca.pem \
+          --peer-cert-file /etc/etcd/server-crt.pem \
+          --peer-key-file /etc/etcd/server-key.pem \
+          --peer-client-cert-auth=true \
+          --advertise-client-urls=https://EtcdDomain:1234 \
+          --initial-advertise-peer-urls=https://127.0.0.1:2380 \
+          --listen-client-urls=https://0.0.0.0:2379 \
+          --listen-peer-urls=https://${DEFAULT_IPV4}:2380 \
+          --initial-cluster-token k8s-etcd-cluster \
+          --initial-cluster etcd0=https://127.0.0.1:2380 \
+          --initial-cluster-state new \
+          --data-dir=/var/lib/etcd \
+          --enable-v2
+      [Install]
+      WantedBy=multi-user.target
+      
+  - name: etcd3-defragmentation.service
+    enabled: false
+    contents: |
+            [Unit]
+      Description=etcd defragmentation job
+      After=docker.service etcd3.service
+      Requires=docker.service etcd3.service
+      [Service]
+      Type=oneshot
+      EnvironmentFile=/etc/network-environment
+      Environment=IMAGE=RegistryDomain/EtcdImage
+      Environment=NAME=%p.service
+      ExecStartPre=-/usr/bin/docker stop  $NAME
+      ExecStartPre=-/usr/bin/docker rm  $NAME
+      ExecStartPre=-/usr/bin/docker pull $IMAGE
+      ExecStart=/usr/bin/docker run \
+        -v /etc/kubernetes/ssl/etcd/:/etc/etcd \
+        --net=host  \
+        -e ETCDCTL_API=3 \
+        --name $NAME \
+        $IMAGE \
+        etcdctl \
+        --endpoints https://127.0.0.1:2379 \
+        --cacert /etc/etcd/server-ca.pem \
+        --cert /etc/etcd/server-crt.pem \
+        --key /etc/etcd/server-key.pem \
+        defrag \
+        --command-timeout=60s \
+        --dial-timeout=60s \
+        --keepalive-timeout=25s
+      [Install]
+      WantedBy=multi-user.target
+      
+  - name: etcd3-defragmentation.timer
+    enabled: true
+    contents: |
+            [Unit]
+      Description=Execute etcd3-defragmentation every day at 3.30AM UTC
+      [Timer]
+      OnCalendar=*-*-* 03:30:00 UTC
+      [Install]
+      WantedBy=multi-user.target
+      
+  - name: k8s-setup-download-hyperkube.service
+    enabled: true
+    contents: |
+            [Unit]
+      Description=Pulls hyperkube binary from image to local FS
+      After=docker.service
+      Requires=docker.service
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      TimeoutStartSec=0
+      Environment=&#34;IMAGE=RegistryDomain/K8sImage&#34;
+      Environment=&#34;NAME=%p.service&#34;
+      ExecStartPre=/bin/bash -c &#34;/usr/bin/docker create --name $NAME $IMAGE&#34;
+      ExecStart=/bin/bash -c &#34;/usr/bin/docker cp $NAME:/hyperkube /opt/bin/hyperkube&#34;
+      ExecStartPost=/bin/bash -c &#34;/usr/bin/docker rm $NAME&#34;
+      [Install]
+      WantedBy=multi-user.target
+      
+  - name: k8s-kubelet.service
+    enabled: true
+    contents: |
+            [Unit]
+      Wants=k8s-setup-network-env.service k8s-setup-kubelet-config.service k8s-setup-download-hyperkube.service
+      After=k8s-setup-network-env.service k8s-setup-kubelet-config.service k8s-setup-download-hyperkube.service
+      Description=k8s-kubelet
+      StartLimitIntervalSec=0
+      [Service]
+      TimeoutStartSec=300
+      Restart=always
+      RestartSec=0
+      TimeoutStopSec=10
+      Slice=kubereserved.slice
+      CPUAccounting=true
+      MemoryAccounting=true
+      Environment=&#34;ETCD_CA_CERT_FILE=/etc/kubernetes/ssl/etcd/server-ca.pem&#34;
+      Environment=&#34;ETCD_CERT_FILE=/etc/kubernetes/ssl/etcd/server-crt.pem&#34;
+      Environment=&#34;ETCD_KEY_FILE=/etc/kubernetes/ssl/etcd/server-key.pem&#34;
+      EnvironmentFile=/etc/network-environment
+      ExecStart=/opt/bin/hyperkube kubelet \
+        kubeletArg1 \
+        kubeletArg2 \
+        --node-ip=${DEFAULT_IPV4} \
+        --config=/etc/kubernetes/config/kubelet.yaml \
+        --enable-server \
+        --logtostderr=true \
+        --cloud-provider=aws \
+        --image-pull-progress-deadline=SomeProgressDeadline \
+        --network-plugin=cni \
+        --register-node=true \
+        --register-with-taints=node-role.kubernetes.io/master=:NoSchedule \
+        --kubeconfig=/etc/kubernetes/kubeconfig/kubelet.yaml \
+        --node-labels=&#34;node.kubernetes.io/master,node-role.kubernetes.io/master,kubernetes.io/role=master,role=master,ip=${DEFAULT_IPV4},some=label&#34; \
+        --v=2
+      [Install]
+      WantedBy=multi-user.target
+      
+  - name: etcd2.service
+    enabled: false
+    mask: true
+  - name: update-engine.service
+    enabled: false
+    mask: true
+  - name: locksmithd.service
+    enabled: false
+    mask: true
+  - name: fleet.service
+    enabled: false
+    mask: true
+  - name: fleet.socket
+    enabled: false
+    mask: true
+  - name: flanneld.service
+    enabled: false
+    mask: true
+  - name: systemd-networkd-wait-online.service
+    enabled: false
+    mask: true
+  - name: k8s-addons.service
+    enabled: true
+    contents: |
+            [Unit]
+      Description=Kubernetes Addons
+      Wants=k8s-kubelet.service k8s-setup-network-env.service
+      After=k8s-kubelet.service k8s-setup-network-env.service
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/k8s-addons
+      # https://github.com/kubernetes/kubernetes/issues/71078
+      ExecStartPost=/usr/bin/systemctl restart k8s-kubelet.service
+      [Install]
+      WantedBy=multi-user.target
+      
+  - name: debug-tools.service
+    enabled: true
+    contents: |
+            [Unit]
+      Description=Install calicoctl and crictl tools
+      After=network.target
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/install-debug-tools
+      [Install]
+      WantedBy=multi-user.target
+      
+
+storage:
+  files:
+    - path: /etc/ssh/trusted-user-ca-keys.pem
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;base64,U1NPUHVibGljS2V5Cg=="
+    - path: /srv/calico-all.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,IyBDQUxJQ08gSEFTIFNFUEFSQVRFIE1BTklGRVNUIEZPUiBBWlVSRQojIHRoZSBhenVyZSBtYW5pZmVzdCBjYW4gYmUgZm91bmQgaW46IGh0dHBzOi8vZ2l0aHViLmNvbS9naWFudHN3YXJtL2F6dXJlLW9wZXJhdG9yL2Jsb2IvbWFzdGVyL3NlcnZpY2UvY29udHJvbGxlci92WC9jbG91ZGNvbmZpZy90ZW1wbGF0ZS5nbwojIHdoZXJlIFggaXMgdGhlIHZlcnNpb24gb2YgYXp1cmUgb3BlcmF0b3IKIwojIEV4dHJhIGNoYW5nZXM6CiMgIC0gQWRkZWQgcmVzb3VyY2UgbGltaXRzIHRvIGNhbGljby1ub2RlIGFuZCBjYWxpY28ta3ViZS1jb250cm9sbGVyLgojICAtIEFkZGVkIHJlc291cmNlIGxpbWl0cyB0byBpbnN0YWxsLWNuaS4KIyAgLSBBZGRlZCAncHJpb3JpdHlDbGFzc05hbWU6IHN5c3RlbS1jbHVzdGVyLWNyaXRpY2FsJyB0byBjYWxpY28gZGFlbW9uc2V0LgojCiMgQ2FsaWNvIFZlcnNpb24gdjMuOS4xCiMgaHR0cHM6Ly9kb2NzLnByb2plY3RjYWxpY28ub3JnL3YzLjkvcmVsZWFzZS1ub3Rlcy8KIyBUaGlzIG1hbmlmZXN0IGluY2x1ZGVzIHRoZSBmb2xsb3dpbmcgY29tcG9uZW50IHZlcnNpb25zOgojICAgY2FsaWNvL25vZGU6djMuOS4xCiMgICBjYWxpY28vY25pOnYzLjkuMQojICAgY2FsaWNvL2t1YmUtY29udHJvbGxlcnM6djMuOS4xCgojIFRoaXMgQ29uZmlnTWFwIGlzIHVzZWQgdG8gY29uZmlndXJlIGEgc2VsZi1ob3N0ZWQgQ2FsaWNvIGluc3RhbGxhdGlvbi4Ka2luZDogQ29uZmlnTWFwCmFwaVZlcnNpb246IHYxCm1ldGFkYXRhOgogIG5hbWU6IGNhbGljby1jb25maWcKICBuYW1lc3BhY2U6IGt1YmUtc3lzdGVtCmRhdGE6CiAgIyBDb25maWd1cmUgdGhpcyB3aXRoIHRoZSBsb2NhdGlvbiBvZiB5b3VyIGV0Y2QgY2x1c3Rlci4KICBldGNkX2VuZHBvaW50czogImh0dHBzOi8vRXRjZERvbWFpbjoxMjM0IgoKICAjIElmIHlvdSdyZSB1c2luZyBUTFMgZW5hYmxlZCBldGNkIHVuY29tbWVudCB0aGUgZm9sbG93aW5nLgogICMgWW91IG11c3QgYWxzbyBwb3B1bGF0ZSB0aGUgU2VjcmV0IGJlbG93IHdpdGggdGhlc2UgZmlsZXMuCiAgZXRjZF9jYTogIi9jYWxpY28tc2VjcmV0cy9jbGllbnQtY2EucGVtIgogIGV0Y2RfY2VydDogIi9jYWxpY28tc2VjcmV0cy9jbGllbnQtY3J0LnBlbSIKICBldGNkX2tleTogIi9jYWxpY28tc2VjcmV0cy9jbGllbnQta2V5LnBlbSIKICAjIFR5cGhhIGlzIGRpc2FibGVkLgogIHR5cGhhX3NlcnZpY2VfbmFtZTogIm5vbmUiCiAgIyBDb25maWd1cmUgdGhlIGJhY2tlbmQgdG8gdXNlLgogIGNhbGljb19iYWNrZW5kOiAiYmlyZCIKCiAgIyBDb25maWd1cmUgdGhlIE1UVSB0byB1c2UKICB2ZXRoX210dTogIkNhbGljb01UVSIKCiAgIyBUaGUgQ05JIG5ldHdvcmsgY29uZmlndXJhdGlvbiB0byBpbnN0YWxsIG9uIGVhY2ggbm9kZS4gIFRoZSBzcGVjaWFsCiAgIyB2YWx1ZXMgaW4gdGhpcyBjb25maWcgd2lsbCBiZSBhdXRvbWF0aWNhbGx5IHBvcHVsYXRlZC4KICBjbmlfbmV0d29ya19jb25maWc6IHwtCiAgICB7CiAgICAgICJuYW1lIjogIms4cy1wb2QtbmV0d29yayIsCiAgICAgICJjbmlWZXJzaW9uIjogIjAuMy4xIiwKICAgICAgInBsdWdpbnMiOiBbCiAgICAgICAgewogICAgICAgICAgInR5cGUiOiAiY2FsaWNvIiwKICAgICAgICAgICJsb2dfbGV2ZWwiOiAiaW5mbyIsCiAgICAgICAgICAibm9kZW5hbWUiOiAiX19LVUJFUk5FVEVTX05PREVfTkFNRV9fIiwKICAgICAgICAgICJldGNkX2VuZHBvaW50cyI6ICJfX0VUQ0RfRU5EUE9JTlRTX18iLAogICAgICAgICAgImV0Y2Rfa2V5X2ZpbGUiOiAiX19FVENEX0tFWV9GSUxFX18iLAogICAgICAgICAgImV0Y2RfY2VydF9maWxlIjogIl9fRVRDRF9DRVJUX0ZJTEVfXyIsCiAgICAgICAgICAiZXRjZF9jYV9jZXJ0X2ZpbGUiOiAiX19FVENEX0NBX0NFUlRfRklMRV9fIiwKICAgICAgICAgICJtdHUiOiBfX0NOSV9NVFVfXywKICAgICAgICAgICJpcGFtIjogewogICAgICAgICAgICAgICJ0eXBlIjogImNhbGljby1pcGFtIgogICAgICAgICAgfSwKICAgICAgICAgICJwb2xpY3kiOiB7CiAgICAgICAgICAgICAgInR5cGUiOiAiazhzIgogICAgICAgICAgfSwKICAgICAgICAgICJrdWJlcm5ldGVzIjogewogICAgICAgICAgICAgICJrdWJlY29uZmlnIjogIl9fS1VCRUNPTkZJR19GSUxFUEFUSF9fIgogICAgICAgICAgfQogICAgICAgIH0sCiAgICAgICAgewogICAgICAgICAgInR5cGUiOiAicG9ydG1hcCIsCiAgICAgICAgICAic25hdCI6IHRydWUsCiAgICAgICAgICAiY2FwYWJpbGl0aWVzIjogeyJwb3J0TWFwcGluZ3MiOiB0cnVlfQogICAgICAgIH0KICAgICAgXQogICAgfQotLS0KIyBTb3VyY2U6IGNhbGljby90ZW1wbGF0ZXMva2RkLWNyZHMueWFtbAphcGlWZXJzaW9uOiBhcGlleHRlbnNpb25zLms4cy5pby92MWJldGExCmtpbmQ6IEN1c3RvbVJlc291cmNlRGVmaW5pdGlvbgptZXRhZGF0YToKICAgbmFtZTogZmVsaXhjb25maWd1cmF0aW9ucy5jcmQucHJvamVjdGNhbGljby5vcmcKc3BlYzoKICBzY29wZTogQ2x1c3RlcgogIGdyb3VwOiBjcmQucHJvamVjdGNhbGljby5vcmcKICB2ZXJzaW9uOiB2MQogIG5hbWVzOgogICAga2luZDogRmVsaXhDb25maWd1cmF0aW9uCiAgICBwbHVyYWw6IGZlbGl4Y29uZmlndXJhdGlvbnMKICAgIHNpbmd1bGFyOiBmZWxpeGNvbmZpZ3VyYXRpb24KLS0tCgphcGlWZXJzaW9uOiBhcGlleHRlbnNpb25zLms4cy5pby92MWJldGExCmtpbmQ6IEN1c3RvbVJlc291cmNlRGVmaW5pdGlvbgptZXRhZGF0YToKICBuYW1lOiBpcGFtYmxvY2tzLmNyZC5wcm9qZWN0Y2FsaWNvLm9yZwpzcGVjOgogIHNjb3BlOiBDbHVzdGVyCiAgZ3JvdXA6IGNyZC5wcm9qZWN0Y2FsaWNvLm9yZwogIHZlcnNpb246IHYxCiAgbmFtZXM6CiAgICBraW5kOiBJUEFNQmxvY2sKICAgIHBsdXJhbDogaXBhbWJsb2NrcwogICAgc2luZ3VsYXI6IGlwYW1ibG9jawoKLS0tCgphcGlWZXJzaW9uOiBhcGlleHRlbnNpb25zLms4cy5pby92MWJldGExCmtpbmQ6IEN1c3RvbVJlc291cmNlRGVmaW5pdGlvbgptZXRhZGF0YToKICBuYW1lOiBibG9ja2FmZmluaXRpZXMuY3JkLnByb2plY3RjYWxpY28ub3JnCnNwZWM6CiAgc2NvcGU6IENsdXN0ZXIKICBncm91cDogY3JkLnByb2plY3RjYWxpY28ub3JnCiAgdmVyc2lvbjogdjEKICBuYW1lczoKICAgIGtpbmQ6IEJsb2NrQWZmaW5pdHkKICAgIHBsdXJhbDogYmxvY2thZmZpbml0aWVzCiAgICBzaW5ndWxhcjogYmxvY2thZmZpbml0eQoKLS0tCgphcGlWZXJzaW9uOiBhcGlleHRlbnNpb25zLms4cy5pby92MWJldGExCmtpbmQ6IEN1c3RvbVJlc291cmNlRGVmaW5pdGlvbgptZXRhZGF0YToKICBuYW1lOiBpcGFtaGFuZGxlcy5jcmQucHJvamVjdGNhbGljby5vcmcKc3BlYzoKICBzY29wZTogQ2x1c3RlcgogIGdyb3VwOiBjcmQucHJvamVjdGNhbGljby5vcmcKICB2ZXJzaW9uOiB2MQogIG5hbWVzOgogICAga2luZDogSVBBTUhhbmRsZQogICAgcGx1cmFsOiBpcGFtaGFuZGxlcwogICAgc2luZ3VsYXI6IGlwYW1oYW5kbGUKCi0tLQoKYXBpVmVyc2lvbjogYXBpZXh0ZW5zaW9ucy5rOHMuaW8vdjFiZXRhMQpraW5kOiBDdXN0b21SZXNvdXJjZURlZmluaXRpb24KbWV0YWRhdGE6CiAgbmFtZTogaXBhbWNvbmZpZ3MuY3JkLnByb2plY3RjYWxpY28ub3JnCnNwZWM6CiAgc2NvcGU6IENsdXN0ZXIKICBncm91cDogY3JkLnByb2plY3RjYWxpY28ub3JnCiAgdmVyc2lvbjogdjEKICBuYW1lczoKICAgIGtpbmQ6IElQQU1Db25maWcKICAgIHBsdXJhbDogaXBhbWNvbmZpZ3MKICAgIHNpbmd1bGFyOiBpcGFtY29uZmlnCgotLS0KCmFwaVZlcnNpb246IGFwaWV4dGVuc2lvbnMuazhzLmlvL3YxYmV0YTEKa2luZDogQ3VzdG9tUmVzb3VyY2VEZWZpbml0aW9uCm1ldGFkYXRhOgogIG5hbWU6IGJncHBlZXJzLmNyZC5wcm9qZWN0Y2FsaWNvLm9yZwpzcGVjOgogIHNjb3BlOiBDbHVzdGVyCiAgZ3JvdXA6IGNyZC5wcm9qZWN0Y2FsaWNvLm9yZwogIHZlcnNpb246IHYxCiAgbmFtZXM6CiAgICBraW5kOiBCR1BQZWVyCiAgICBwbHVyYWw6IGJncHBlZXJzCiAgICBzaW5ndWxhcjogYmdwcGVlcgoKLS0tCgphcGlWZXJzaW9uOiBhcGlleHRlbnNpb25zLms4cy5pby92MWJldGExCmtpbmQ6IEN1c3RvbVJlc291cmNlRGVmaW5pdGlvbgptZXRhZGF0YToKICBuYW1lOiBiZ3Bjb25maWd1cmF0aW9ucy5jcmQucHJvamVjdGNhbGljby5vcmcKc3BlYzoKICBzY29wZTogQ2x1c3RlcgogIGdyb3VwOiBjcmQucHJvamVjdGNhbGljby5vcmcKICB2ZXJzaW9uOiB2MQogIG5hbWVzOgogICAga2luZDogQkdQQ29uZmlndXJhdGlvbgogICAgcGx1cmFsOiBiZ3Bjb25maWd1cmF0aW9ucwogICAgc2luZ3VsYXI6IGJncGNvbmZpZ3VyYXRpb24KCi0tLQoKYXBpVmVyc2lvbjogYXBpZXh0ZW5zaW9ucy5rOHMuaW8vdjFiZXRhMQpraW5kOiBDdXN0b21SZXNvdXJjZURlZmluaXRpb24KbWV0YWRhdGE6CiAgbmFtZTogaXBwb29scy5jcmQucHJvamVjdGNhbGljby5vcmcKc3BlYzoKICBzY29wZTogQ2x1c3RlcgogIGdyb3VwOiBjcmQucHJvamVjdGNhbGljby5vcmcKICB2ZXJzaW9uOiB2MQogIG5hbWVzOgogICAga2luZDogSVBQb29sCiAgICBwbHVyYWw6IGlwcG9vbHMKICAgIHNpbmd1bGFyOiBpcHBvb2wKCi0tLQoKYXBpVmVyc2lvbjogYXBpZXh0ZW5zaW9ucy5rOHMuaW8vdjFiZXRhMQpraW5kOiBDdXN0b21SZXNvdXJjZURlZmluaXRpb24KbWV0YWRhdGE6CiAgbmFtZTogaG9zdGVuZHBvaW50cy5jcmQucHJvamVjdGNhbGljby5vcmcKc3BlYzoKICBzY29wZTogQ2x1c3RlcgogIGdyb3VwOiBjcmQucHJvamVjdGNhbGljby5vcmcKICB2ZXJzaW9uOiB2MQogIG5hbWVzOgogICAga2luZDogSG9zdEVuZHBvaW50CiAgICBwbHVyYWw6IGhvc3RlbmRwb2ludHMKICAgIHNpbmd1bGFyOiBob3N0ZW5kcG9pbnQKCi0tLQoKYXBpVmVyc2lvbjogYXBpZXh0ZW5zaW9ucy5rOHMuaW8vdjFiZXRhMQpraW5kOiBDdXN0b21SZXNvdXJjZURlZmluaXRpb24KbWV0YWRhdGE6CiAgbmFtZTogY2x1c3RlcmluZm9ybWF0aW9ucy5jcmQucHJvamVjdGNhbGljby5vcmcKc3BlYzoKICBzY29wZTogQ2x1c3RlcgogIGdyb3VwOiBjcmQucHJvamVjdGNhbGljby5vcmcKICB2ZXJzaW9uOiB2MQogIG5hbWVzOgogICAga2luZDogQ2x1c3RlckluZm9ybWF0aW9uCiAgICBwbHVyYWw6IGNsdXN0ZXJpbmZvcm1hdGlvbnMKICAgIHNpbmd1bGFyOiBjbHVzdGVyaW5mb3JtYXRpb24KCi0tLQoKYXBpVmVyc2lvbjogYXBpZXh0ZW5zaW9ucy5rOHMuaW8vdjFiZXRhMQpraW5kOiBDdXN0b21SZXNvdXJjZURlZmluaXRpb24KbWV0YWRhdGE6CiAgbmFtZTogZ2xvYmFsbmV0d29ya3BvbGljaWVzLmNyZC5wcm9qZWN0Y2FsaWNvLm9yZwpzcGVjOgogIHNjb3BlOiBDbHVzdGVyCiAgZ3JvdXA6IGNyZC5wcm9qZWN0Y2FsaWNvLm9yZwogIHZlcnNpb246IHYxCiAgbmFtZXM6CiAgICBraW5kOiBHbG9iYWxOZXR3b3JrUG9saWN5CiAgICBwbHVyYWw6IGdsb2JhbG5ldHdvcmtwb2xpY2llcwogICAgc2luZ3VsYXI6IGdsb2JhbG5ldHdvcmtwb2xpY3kKCi0tLQoKYXBpVmVyc2lvbjogYXBpZXh0ZW5zaW9ucy5rOHMuaW8vdjFiZXRhMQpraW5kOiBDdXN0b21SZXNvdXJjZURlZmluaXRpb24KbWV0YWRhdGE6CiAgbmFtZTogZ2xvYmFsbmV0d29ya3NldHMuY3JkLnByb2plY3RjYWxpY28ub3JnCnNwZWM6CiAgc2NvcGU6IENsdXN0ZXIKICBncm91cDogY3JkLnByb2plY3RjYWxpY28ub3JnCiAgdmVyc2lvbjogdjEKICBuYW1lczoKICAgIGtpbmQ6IEdsb2JhbE5ldHdvcmtTZXQKICAgIHBsdXJhbDogZ2xvYmFsbmV0d29ya3NldHMKICAgIHNpbmd1bGFyOiBnbG9iYWxuZXR3b3Jrc2V0CgotLS0KCmFwaVZlcnNpb246IGFwaWV4dGVuc2lvbnMuazhzLmlvL3YxYmV0YTEKa2luZDogQ3VzdG9tUmVzb3VyY2VEZWZpbml0aW9uCm1ldGFkYXRhOgogIG5hbWU6IG5ldHdvcmtwb2xpY2llcy5jcmQucHJvamVjdGNhbGljby5vcmcKc3BlYzoKICBzY29wZTogTmFtZXNwYWNlZAogIGdyb3VwOiBjcmQucHJvamVjdGNhbGljby5vcmcKICB2ZXJzaW9uOiB2MQogIG5hbWVzOgogICAga2luZDogTmV0d29ya1BvbGljeQogICAgcGx1cmFsOiBuZXR3b3JrcG9saWNpZXMKICAgIHNpbmd1bGFyOiBuZXR3b3JrcG9saWN5CgotLS0KIyBUaGlzIG1hbmlmZXN0IGluc3RhbGxzIHRoZSBjYWxpY28tbm9kZSBjb250YWluZXIsIGFzIHdlbGwKIyBhcyB0aGUgQ05JIHBsdWdpbnMgYW5kIG5ldHdvcmsgY29uZmlnIG9uCiMgZWFjaCBtYXN0ZXIgYW5kIHdvcmtlciBub2RlIGluIGEgS3ViZXJuZXRlcyBjbHVzdGVyLgpraW5kOiBEYWVtb25TZXQKYXBpVmVyc2lvbjogYXBwcy92MQptZXRhZGF0YToKICBuYW1lOiBjYWxpY28tbm9kZQogIG5hbWVzcGFjZToga3ViZS1zeXN0ZW0KICBsYWJlbHM6CiAgICBnaWFudHN3YXJtLmlvL3NlcnZpY2UtdHlwZTogbWFuYWdlZAogICAgazhzLWFwcDogY2FsaWNvLW5vZGUKc3BlYzoKICBzZWxlY3RvcjoKICAgIG1hdGNoTGFiZWxzOgogICAgICBrOHMtYXBwOiBjYWxpY28tbm9kZQogIHVwZGF0ZVN0cmF0ZWd5OgogICAgdHlwZTogUm9sbGluZ1VwZGF0ZQogICAgcm9sbGluZ1VwZGF0ZToKICAgICAgbWF4VW5hdmFpbGFibGU6IDEKICB0ZW1wbGF0ZToKICAgIG1ldGFkYXRhOgogICAgICBsYWJlbHM6CiAgICAgICAgazhzLWFwcDogY2FsaWNvLW5vZGUKICAgICAgICBnaWFudHN3YXJtLmlvL3NlcnZpY2UtdHlwZTogbWFuYWdlZAogICAgICBhbm5vdGF0aW9uczoKICAgICAgICAjIFRoaXMsIGFsb25nIHdpdGggdGhlIENyaXRpY2FsQWRkb25zT25seSB0b2xlcmF0aW9uIGJlbG93LAogICAgICAgICMgbWFya3MgdGhlIHBvZCBhcyBhIGNyaXRpY2FsIGFkZC1vbiwgZW5zdXJpbmcgaXQgZ2V0cwogICAgICAgICMgcHJpb3JpdHkgc2NoZWR1bGluZyBhbmQgdGhhdCBpdHMgcmVzb3VyY2VzIGFyZSByZXNlcnZlZAogICAgICAgICMgaWYgaXQgZXZlciBnZXRzIGV2aWN0ZWQuCiAgICAgICAgc2NoZWR1bGVyLmFscGhhLmt1YmVybmV0ZXMuaW8vY3JpdGljYWwtcG9kOiAnJwogICAgc3BlYzoKICAgICAgbm9kZVNlbGVjdG9yOgogICAgICAgIGt1YmVybmV0ZXMuaW8vb3M6IGxpbnV4CiAgICAgIGhvc3ROZXR3b3JrOiB0cnVlCiAgICAgIHRvbGVyYXRpb25zOgogICAgICAgICMgTWFrZSBzdXJlIGNhbGljby1ub2RlIGdldHMgc2NoZWR1bGVkIG9uIGFsbCBub2Rlcy4KICAgICAgICAtIGVmZmVjdDogTm9TY2hlZHVsZQogICAgICAgICAgb3BlcmF0b3I6IEV4aXN0cwogICAgICAgICMgTWFyayB0aGUgcG9kIGFzIGEgY3JpdGljYWwgYWRkLW9uIGZvciByZXNjaGVkdWxpbmcuCiAgICAgICAgLSBrZXk6IENyaXRpY2FsQWRkb25zT25seQogICAgICAgICAgb3BlcmF0b3I6IEV4aXN0cwogICAgICAgIC0gZWZmZWN0OiBOb0V4ZWN1dGUKICAgICAgICAgIG9wZXJhdG9yOiBFeGlzdHMKICAgICAgc2VydmljZUFjY291bnROYW1lOiBjYWxpY28tbm9kZQogICAgICAjIE1pbmltaXplIGRvd250aW1lIGR1cmluZyBhIHJvbGxpbmcgdXBncmFkZSBvciBkZWxldGlvbjsgdGVsbCBLdWJlcm5ldGVzIHRvIGRvIGEgImZvcmNlCiAgICAgICMgZGVsZXRpb24iOiBodHRwczovL2t1YmVybmV0ZXMuaW8vZG9jcy9jb25jZXB0cy93b3JrbG9hZHMvcG9kcy9wb2QvI3Rlcm1pbmF0aW9uLW9mLXBvZHMuCiAgICAgIHRlcm1pbmF0aW9uR3JhY2VQZXJpb2RTZWNvbmRzOiAwCiAgICAgIHByaW9yaXR5Q2xhc3NOYW1lOiBzeXN0ZW0tY2x1c3Rlci1jcml0aWNhbAogICAgICBpbml0Q29udGFpbmVyczoKICAgICAgICAjIFRoaXMgY29udGFpbmVyIGluc3RhbGxzIHRoZSBDTkkgYmluYXJpZXMKICAgICAgICAjIGFuZCBDTkkgbmV0d29yayBjb25maWcgZmlsZSBvbiBlYWNoIG5vZGUuCiAgICAgICAgLSBuYW1lOiBpbnN0YWxsLWNuaQogICAgICAgICAgaW1hZ2U6IFJlZ2lzdHJ5RG9tYWluL2dpYW50c3dhcm0vY25pOnYzLjkuMQogICAgICAgICAgY29tbWFuZDogWyIvaW5zdGFsbC1jbmkuc2giXQogICAgICAgICAgZW52OgogICAgICAgICAgICAjIE5hbWUgb2YgdGhlIENOSSBjb25maWcgZmlsZSB0byBjcmVhdGUuCiAgICAgICAgICAgIC0gbmFtZTogQ05JX0NPTkZfTkFNRQogICAgICAgICAgICAgIHZhbHVlOiAiMTAtY2FsaWNvLmNvbmZsaXN0IgogICAgICAgICAgICAjIFRoZSBDTkkgbmV0d29yayBjb25maWcgdG8gaW5zdGFsbCBvbiBlYWNoIG5vZGUuCiAgICAgICAgICAgIC0gbmFtZTogQ05JX05FVFdPUktfQ09ORklHCiAgICAgICAgICAgICAgdmFsdWVGcm9tOgogICAgICAgICAgICAgICAgY29uZmlnTWFwS2V5UmVmOgogICAgICAgICAgICAgICAgICBuYW1lOiBjYWxpY28tY29uZmlnCiAgICAgICAgICAgICAgICAgIGtleTogY25pX25ldHdvcmtfY29uZmlnCiAgICAgICAgICAgICMgVGhlIGxvY2F0aW9uIG9mIHRoZSBDYWxpY28gZXRjZCBjbHVzdGVyLgogICAgICAgICAgICAtIG5hbWU6IEVUQ0RfRU5EUE9JTlRTCiAgICAgICAgICAgICAgdmFsdWVGcm9tOgogICAgICAgICAgICAgICAgY29uZmlnTWFwS2V5UmVmOgogICAgICAgICAgICAgICAgICBuYW1lOiBjYWxpY28tY29uZmlnCiAgICAgICAgICAgICAgICAgIGtleTogZXRjZF9lbmRwb2ludHMKICAgICAgICAgICAgIyBDTkkgTVRVIENvbmZpZyB2YXJpYWJsZQogICAgICAgICAgICAtIG5hbWU6IENOSV9NVFUKICAgICAgICAgICAgICB2YWx1ZUZyb206CiAgICAgICAgICAgICAgICBjb25maWdNYXBLZXlSZWY6CiAgICAgICAgICAgICAgICAgIG5hbWU6IGNhbGljby1jb25maWcKICAgICAgICAgICAgICAgICAga2V5OiB2ZXRoX210dQogICAgICAgICAgICAjIFByZXZlbnRzIHRoZSBjb250YWluZXIgZnJvbSBzbGVlcGluZyBmb3JldmVyLgogICAgICAgICAgICAtIG5hbWU6IFNMRUVQCiAgICAgICAgICAgICAgdmFsdWU6ICJmYWxzZSIKICAgICAgICAgIHJlc291cmNlczoKICAgICAgICAgICAgcmVxdWVzdHM6CiAgICAgICAgICAgICAgY3B1OiA1MG0KICAgICAgICAgICAgICBtZW1vcnk6IDEwME1pCiAgICAgICAgICAgIGxpbWl0czoKICAgICAgICAgICAgICBjcHU6IDUwbQogICAgICAgICAgICAgIG1lbW9yeTogMTAwTWkKICAgICAgICAgIHZvbHVtZU1vdW50czoKICAgICAgICAgICAgLSBtb3VudFBhdGg6IC9ob3N0L29wdC9jbmkvYmluCiAgICAgICAgICAgICAgbmFtZTogY25pLWJpbi1kaXIKICAgICAgICAgICAgLSBtb3VudFBhdGg6IC9ob3N0L2V0Yy9jbmkvbmV0LmQKICAgICAgICAgICAgICBuYW1lOiBjbmktbmV0LWRpcgogICAgICAgICAgICAtIG1vdW50UGF0aDogL2NhbGljby1zZWNyZXRzCiAgICAgICAgICAgICAgbmFtZTogZXRjZC1jZXJ0cwogICAgICBjb250YWluZXJzOgogICAgICAgICMgUnVucyBjYWxpY28tbm9kZSBjb250YWluZXIgb24gZWFjaCBLdWJlcm5ldGVzIG5vZGUuICBUaGlzCiAgICAgICAgIyBjb250YWluZXIgcHJvZ3JhbXMgbmV0d29yayBwb2xpY3kgYW5kIHJvdXRlcyBvbiBlYWNoCiAgICAgICAgIyBob3N0LgogICAgICAgIC0gbmFtZTogY2FsaWNvLW5vZGUKICAgICAgICAgIGltYWdlOiBSZWdpc3RyeURvbWFpbi9naWFudHN3YXJtL25vZGU6djMuOS4xCiAgICAgICAgICBlbnY6CiAgICAgICAgICAgICMgVGhlIGxvY2F0aW9uIG9mIHRoZSBDYWxpY28gZXRjZCBjbHVzdGVyLgogICAgICAgICAgICAtIG5hbWU6IEVUQ0RfRU5EUE9JTlRTCiAgICAgICAgICAgICAgdmFsdWVGcm9tOgogICAgICAgICAgICAgICAgY29uZmlnTWFwS2V5UmVmOgogICAgICAgICAgICAgICAgICBuYW1lOiBjYWxpY28tY29uZmlnCiAgICAgICAgICAgICAgICAgIGtleTogZXRjZF9lbmRwb2ludHMKICAgICAgICAgICAgIyBMb2NhdGlvbiBvZiB0aGUgQ0EgY2VydGlmaWNhdGUgZm9yIGV0Y2QuCiAgICAgICAgICAgIC0gbmFtZTogRVRDRF9DQV9DRVJUX0ZJTEUKICAgICAgICAgICAgICB2YWx1ZUZyb206CiAgICAgICAgICAgICAgICBjb25maWdNYXBLZXlSZWY6CiAgICAgICAgICAgICAgICAgIG5hbWU6IGNhbGljby1jb25maWcKICAgICAgICAgICAgICAgICAga2V5OiBldGNkX2NhCiAgICAgICAgICAgICMgTG9jYXRpb24gb2YgdGhlIGNsaWVudCBrZXkgZm9yIGV0Y2QuCiAgICAgICAgICAgIC0gbmFtZTogRVRDRF9LRVlfRklMRQogICAgICAgICAgICAgIHZhbHVlRnJvbToKICAgICAgICAgICAgICAgIGNvbmZpZ01hcEtleVJlZjoKICAgICAgICAgICAgICAgICAgbmFtZTogY2FsaWNvLWNvbmZpZwogICAgICAgICAgICAgICAgICBrZXk6IGV0Y2Rfa2V5CiAgICAgICAgICAgICMgTG9jYXRpb24gb2YgdGhlIGNsaWVudCBjZXJ0aWZpY2F0ZSBmb3IgZXRjZC4KICAgICAgICAgICAgLSBuYW1lOiBFVENEX0NFUlRfRklMRQogICAgICAgICAgICAgIHZhbHVlRnJvbToKICAgICAgICAgICAgICAgIGNvbmZpZ01hcEtleVJlZjoKICAgICAgICAgICAgICAgICAgbmFtZTogY2FsaWNvLWNvbmZpZwogICAgICAgICAgICAgICAgICBrZXk6IGV0Y2RfY2VydAogICAgICAgICAgICAjIFNldCBub2RlcmVmIGZvciBub2RlIGNvbnRyb2xsZXIuCiAgICAgICAgICAgIC0gbmFtZTogQ0FMSUNPX0s4U19OT0RFX1JFRgogICAgICAgICAgICAgIHZhbHVlRnJvbToKICAgICAgICAgICAgICAgIGZpZWxkUmVmOgogICAgICAgICAgICAgICAgICBmaWVsZFBhdGg6IHNwZWMubm9kZU5hbWUKICAgICAgICAgICAgIyBDaG9vc2UgdGhlIGJhY2tlbmQgdG8gdXNlLgogICAgICAgICAgICAtIG5hbWU6IENBTElDT19ORVRXT1JLSU5HX0JBQ0tFTkQKICAgICAgICAgICAgICB2YWx1ZUZyb206CiAgICAgICAgICAgICAgICBjb25maWdNYXBLZXlSZWY6CiAgICAgICAgICAgICAgICAgIG5hbWU6IGNhbGljby1jb25maWcKICAgICAgICAgICAgICAgICAga2V5OiBjYWxpY29fYmFja2VuZAogICAgICAgICAgICAjIENsdXN0ZXIgdHlwZSB0byBpZGVudGlmeSB0aGUgZGVwbG95bWVudCB0eXBlCiAgICAgICAgICAgIC0gbmFtZTogQ0xVU1RFUl9UWVBFCiAgICAgICAgICAgICAgdmFsdWU6ICJrOHMsYmdwIgogICAgICAgICAgICAjIEF1dG8tZGV0ZWN0IHRoZSBCR1AgSVAgYWRkcmVzcy4KICAgICAgICAgICAgLSBuYW1lOiBJUAogICAgICAgICAgICAgIHZhbHVlOiAiYXV0b2RldGVjdCIKICAgICAgICAgICAgIyBFbmFibGUgSVBJUAogICAgICAgICAgICAtIG5hbWU6IENBTElDT19JUFY0UE9PTF9JUElQCiAgICAgICAgICAgICAgdmFsdWU6ICJBbHdheXMiCiAgICAgICAgICAgICMgU2V0IE1UVSBmb3IgdHVubmVsIGRldmljZSB1c2VkIGlmIGlwaXAgaXMgZW5hYmxlZAogICAgICAgICAgICAtIG5hbWU6IEZFTElYX0lQSU5JUE1UVQogICAgICAgICAgICAgIHZhbHVlRnJvbToKICAgICAgICAgICAgICAgIGNvbmZpZ01hcEtleVJlZjoKICAgICAgICAgICAgICAgICAgbmFtZTogY2FsaWNvLWNvbmZpZwogICAgICAgICAgICAgICAgICBrZXk6IHZldGhfbXR1CiAgICAgICAgICAgICMgVGhlIGRlZmF1bHQgSVB2NCBwb29sIHRvIGNyZWF0ZSBvbiBzdGFydHVwIGlmIG5vbmUgZXhpc3RzLiBQb2QgSVBzIHdpbGwgYmUKICAgICAgICAgICAgIyBjaG9zZW4gZnJvbSB0aGlzIHJhbmdlLiBDaGFuZ2luZyB0aGlzIHZhbHVlIGFmdGVyIGluc3RhbGxhdGlvbiB3aWxsIGhhdmUKICAgICAgICAgICAgIyBubyBlZmZlY3QuIFRoaXMgc2hvdWxkIGZhbGwgd2l0aGluIGAtLWNsdXN0ZXItY2lkcmAuCiAgICAgICAgICAgIC0gbmFtZTogQ0FMSUNPX0lQVjRQT09MX0NJRFIKICAgICAgICAgICAgICB2YWx1ZTogIkNhbGljb1N1Ym5ldC9DYWxpY29DSURSIgogICAgICAgICAgICAjIERpc2FibGUgZmlsZSBsb2dnaW5nIHNvIGBrdWJlY3RsIGxvZ3NgIHdvcmtzLgogICAgICAgICAgICAtIG5hbWU6IENBTElDT19ESVNBQkxFX0ZJTEVfTE9HR0lORwogICAgICAgICAgICAgIHZhbHVlOiAidHJ1ZSIKICAgICAgICAgICAgIyBTZXQgRmVsaXggZW5kcG9pbnQgdG8gaG9zdCBkZWZhdWx0IGFjdGlvbiB0byBBQ0NFUFQuCiAgICAgICAgICAgIC0gbmFtZTogRkVMSVhfREVGQVVMVEVORFBPSU5UVE9IT1NUQUNUSU9OCiAgICAgICAgICAgICAgdmFsdWU6ICJBQ0NFUFQiCiAgICAgICAgICAgICMgRGlzYWJsZSBJUHY2IG9uIEt1YmVybmV0ZXMuCiAgICAgICAgICAgIC0gbmFtZTogRkVMSVhfSVBWNlNVUFBPUlQKICAgICAgICAgICAgICB2YWx1ZTogImZhbHNlIgogICAgICAgICAgICAjIFNldCBGZWxpeCBsb2dnaW5nIHRvICJpbmZvIgogICAgICAgICAgICAtIG5hbWU6IEZFTElYX0xPR1NFVkVSSVRZU0NSRUVOCiAgICAgICAgICAgICAgdmFsdWU6ICJXYXJuaW5nIgogICAgICAgICAgICAtIG5hbWU6IEZFTElYX0hFQUxUSEVOQUJMRUQKICAgICAgICAgICAgICB2YWx1ZTogInRydWUiCiAgICAgICAgICAgIC0gbmFtZTogRkVMSVhfUFJPTUVUSEVVU01FVFJJQ1NFTkFCTEVECiAgICAgICAgICAgICAgdmFsdWU6ICJ0cnVlIgogICAgICAgICAgc2VjdXJpdHlDb250ZXh0OgogICAgICAgICAgICBwcml2aWxlZ2VkOiB0cnVlCiAgICAgICAgICByZXNvdXJjZXM6CiAgICAgICAgICAgIHJlcXVlc3RzOgogICAgICAgICAgICAgIGNwdTogMjUwbQogICAgICAgICAgICAgIG1lbW9yeTogMTUwTWkKICAgICAgICAgIGxpdmVuZXNzUHJvYmU6CiAgICAgICAgICAgIGV4ZWM6CiAgICAgICAgICAgICAgY29tbWFuZDoKICAgICAgICAgICAgICAtIC9iaW4vY2FsaWNvLW5vZGUKICAgICAgICAgICAgICAtIC1mZWxpeC1saXZlCiAgICAgICAgICAgIHBlcmlvZFNlY29uZHM6IDEwCiAgICAgICAgICAgIGluaXRpYWxEZWxheVNlY29uZHM6IDEwCiAgICAgICAgICAgIGZhaWx1cmVUaHJlc2hvbGQ6IDYKICAgICAgICAgIHJlYWRpbmVzc1Byb2JlOgogICAgICAgICAgICBleGVjOgogICAgICAgICAgICAgIGNvbW1hbmQ6CiAgICAgICAgICAgICAgICAtIC9iaW4vY2FsaWNvLW5vZGUKICAgICAgICAgICAgICAgIC0gLWZlbGl4LXJlYWR5CiAgICAgICAgICAgICAgICAtIC1iaXJkLXJlYWR5CiAgICAgICAgICAgIHBlcmlvZFNlY29uZHM6IDEwCiAgICAgICAgICB2b2x1bWVNb3VudHM6CiAgICAgICAgICAgIC0gbW91bnRQYXRoOiAvbGliL21vZHVsZXMKICAgICAgICAgICAgICBuYW1lOiBsaWItbW9kdWxlcwogICAgICAgICAgICAgIHJlYWRPbmx5OiB0cnVlCiAgICAgICAgICAgIC0gbW91bnRQYXRoOiAvcnVuL3h0YWJsZXMubG9jawogICAgICAgICAgICAgIG5hbWU6IHh0YWJsZXMtbG9jawogICAgICAgICAgICAgIHJlYWRPbmx5OiBmYWxzZQogICAgICAgICAgICAtIG1vdW50UGF0aDogL3Zhci9ydW4vY2FsaWNvCiAgICAgICAgICAgICAgbmFtZTogdmFyLXJ1bi1jYWxpY28KICAgICAgICAgICAgICByZWFkT25seTogZmFsc2UKICAgICAgICAgICAgLSBtb3VudFBhdGg6IC92YXIvbGliL2NhbGljbwogICAgICAgICAgICAgIG5hbWU6IHZhci1saWItY2FsaWNvCiAgICAgICAgICAgICAgcmVhZE9ubHk6IGZhbHNlCiAgICAgICAgICAgIC0gbW91bnRQYXRoOiAvY2FsaWNvLXNlY3JldHMKICAgICAgICAgICAgICBuYW1lOiBldGNkLWNlcnRzCiAgICAgIHZvbHVtZXM6CiAgICAgICAgIyBVc2VkIGJ5IGNhbGljby1ub2RlLgogICAgICAgIC0gbmFtZTogbGliLW1vZHVsZXMKICAgICAgICAgIGhvc3RQYXRoOgogICAgICAgICAgICBwYXRoOiAvbGliL21vZHVsZXMKICAgICAgICAtIG5hbWU6IHZhci1ydW4tY2FsaWNvCiAgICAgICAgICBob3N0UGF0aDoKICAgICAgICAgICAgcGF0aDogL3Zhci9ydW4vY2FsaWNvCiAgICAgICAgLSBuYW1lOiB2YXItbGliLWNhbGljbwogICAgICAgICAgaG9zdFBhdGg6CiAgICAgICAgICAgIHBhdGg6IC92YXIvbGliL2NhbGljbwogICAgICAgIC0gbmFtZTogeHRhYmxlcy1sb2NrCiAgICAgICAgICBob3N0UGF0aDoKICAgICAgICAgICAgcGF0aDogL3J1bi94dGFibGVzLmxvY2sKICAgICAgICAgICAgdHlwZTogRmlsZU9yQ3JlYXRlCiAgICAgICAgIyBVc2VkIHRvIGluc3RhbGwgQ05JLgogICAgICAgIC0gbmFtZTogY25pLWJpbi1kaXIKICAgICAgICAgIGhvc3RQYXRoOgogICAgICAgICAgICBwYXRoOiAvb3B0L2NuaS9iaW4KICAgICAgICAtIG5hbWU6IGNuaS1uZXQtZGlyCiAgICAgICAgICBob3N0UGF0aDoKICAgICAgICAgICAgcGF0aDogL2V0Yy9jbmkvbmV0LmQKICAgICAgICAjIE1vdW50IGluIHRoZSBldGNkIFRMUyBzZWNyZXRzLgogICAgICAgICMgU2VlIGh0dHBzOi8va3ViZXJuZXRlcy5pby9kb2NzL2NvbmNlcHRzL2NvbmZpZ3VyYXRpb24vc2VjcmV0LwogICAgICAgIC0gbmFtZTogZXRjZC1jZXJ0cwogICAgICAgICAgaG9zdFBhdGg6CiAgICAgICAgICAgIHBhdGg6IC9ldGMva3ViZXJuZXRlcy9zc2wvZXRjZAotLS0KCmFwaVZlcnNpb246IHYxCmtpbmQ6IFNlcnZpY2VBY2NvdW50Cm1ldGFkYXRhOgogIG5hbWU6IGNhbGljby1ub2RlCiAgbmFtZXNwYWNlOiBrdWJlLXN5c3RlbQoKLS0tCiMgVGhpcyBtYW5pZmVzdCBkZXBsb3lzIHRoZSBDYWxpY28gS3ViZXJuZXRlcyBjb250cm9sbGVycy4KIyBTZWUgaHR0cHM6Ly9naXRodWIuY29tL3Byb2plY3RjYWxpY28va3ViZS1jb250cm9sbGVycwphcGlWZXJzaW9uOiBhcHBzL3YxCmtpbmQ6IERlcGxveW1lbnQKbWV0YWRhdGE6CiAgbmFtZTogY2FsaWNvLWt1YmUtY29udHJvbGxlcnMKICBuYW1lc3BhY2U6IGt1YmUtc3lzdGVtCiAgbGFiZWxzOgogICAgZ2lhbnRzd2FybS5pby9zZXJ2aWNlLXR5cGU6IG1hbmFnZWQKICAgIGs4cy1hcHA6IGNhbGljby1rdWJlLWNvbnRyb2xsZXJzCiAgYW5ub3RhdGlvbnM6CiAgICBzY2hlZHVsZXIuYWxwaGEua3ViZXJuZXRlcy5pby9jcml0aWNhbC1wb2Q6ICcnCnNwZWM6CiAgIyBUaGUgY29udHJvbGxlcnMgY2FuIG9ubHkgaGF2ZSBhIHNpbmdsZSBhY3RpdmUgaW5zdGFuY2UuCiAgcmVwbGljYXM6IDEKICBzZWxlY3RvcjoKICAgIG1hdGNoTGFiZWxzOgogICAgICBrOHMtYXBwOiBjYWxpY28ta3ViZS1jb250cm9sbGVycwogIHN0cmF0ZWd5OgogICAgdHlwZTogUmVjcmVhdGUKICB0ZW1wbGF0ZToKICAgIG1ldGFkYXRhOgogICAgICBuYW1lOiBjYWxpY28ta3ViZS1jb250cm9sbGVycwogICAgICBuYW1lc3BhY2U6IGt1YmUtc3lzdGVtCiAgICAgIGxhYmVsczoKICAgICAgICBrOHMtYXBwOiBjYWxpY28ta3ViZS1jb250cm9sbGVycwogICAgICAgIGdpYW50c3dhcm0uaW8vc2VydmljZS10eXBlOiBtYW5hZ2VkCiAgICBzcGVjOgogICAgICBub2RlU2VsZWN0b3I6CiAgICAgICAga3ViZXJuZXRlcy5pby9vczogbGludXgKICAgICAgICBrdWJlcm5ldGVzLmlvL3JvbGU6IG1hc3RlcgogICAgICAjIFRoZSBjb250cm9sbGVycyBtdXN0IHJ1biBpbiB0aGUgaG9zdCBuZXR3b3JrIG5hbWVzcGFjZSBzbyB0aGF0CiAgICAgICMgaXQgaXNuJ3QgZ292ZXJuZWQgYnkgcG9saWN5IHRoYXQgd291bGQgcHJldmVudCBpdCBmcm9tIHdvcmtpbmcuCiAgICAgIGhvc3ROZXR3b3JrOiB0cnVlCiAgICAgIHRvbGVyYXRpb25zOgogICAgICAgICMgTWFyayB0aGUgcG9kIGFzIGEgY3JpdGljYWwgYWRkLW9uIGZvciByZXNjaGVkdWxpbmcuCiAgICAgICAgLSBrZXk6IENyaXRpY2FsQWRkb25zT25seQogICAgICAgICAgb3BlcmF0b3I6IEV4aXN0cwogICAgICAgIC0ga2V5OiBub2RlLXJvbGUua3ViZXJuZXRlcy5pby9tYXN0ZXIKICAgICAgICAgIGVmZmVjdDogTm9TY2hlZHVsZQogICAgICBzZXJ2aWNlQWNjb3VudE5hbWU6IGNhbGljby1rdWJlLWNvbnRyb2xsZXJzCiAgICAgIHByaW9yaXR5Q2xhc3NOYW1lOiBzeXN0ZW0tY2x1c3Rlci1jcml0aWNhbAogICAgICBjb250YWluZXJzOgogICAgICAgIC0gbmFtZTogY2FsaWNvLWt1YmUtY29udHJvbGxlcnMKICAgICAgICAgIGltYWdlOiBSZWdpc3RyeURvbWFpbi9naWFudHN3YXJtL2t1YmUtY29udHJvbGxlcnM6djMuOS4xCiAgICAgICAgICBlbnY6CiAgICAgICAgICAgICMgVGhlIGxvY2F0aW9uIG9mIHRoZSBDYWxpY28gZXRjZCBjbHVzdGVyLgogICAgICAgICAgICAtIG5hbWU6IEVUQ0RfRU5EUE9JTlRTCiAgICAgICAgICAgICAgdmFsdWVGcm9tOgogICAgICAgICAgICAgICAgY29uZmlnTWFwS2V5UmVmOgogICAgICAgICAgICAgICAgICBuYW1lOiBjYWxpY28tY29uZmlnCiAgICAgICAgICAgICAgICAgIGtleTogZXRjZF9lbmRwb2ludHMKICAgICAgICAgICAgIyBMb2NhdGlvbiBvZiB0aGUgQ0EgY2VydGlmaWNhdGUgZm9yIGV0Y2QuCiAgICAgICAgICAgIC0gbmFtZTogRVRDRF9DQV9DRVJUX0ZJTEUKICAgICAgICAgICAgICB2YWx1ZUZyb206CiAgICAgICAgICAgICAgICBjb25maWdNYXBLZXlSZWY6CiAgICAgICAgICAgICAgICAgIG5hbWU6IGNhbGljby1jb25maWcKICAgICAgICAgICAgICAgICAga2V5OiBldGNkX2NhCiAgICAgICAgICAgICMgTG9jYXRpb24gb2YgdGhlIGNsaWVudCBrZXkgZm9yIGV0Y2QuCiAgICAgICAgICAgIC0gbmFtZTogRVRDRF9LRVlfRklMRQogICAgICAgICAgICAgIHZhbHVlRnJvbToKICAgICAgICAgICAgICAgIGNvbmZpZ01hcEtleVJlZjoKICAgICAgICAgICAgICAgICAgbmFtZTogY2FsaWNvLWNvbmZpZwogICAgICAgICAgICAgICAgICBrZXk6IGV0Y2Rfa2V5CiAgICAgICAgICAgICMgTG9jYXRpb24gb2YgdGhlIGNsaWVudCBjZXJ0aWZpY2F0ZSBmb3IgZXRjZC4KICAgICAgICAgICAgLSBuYW1lOiBFVENEX0NFUlRfRklMRQogICAgICAgICAgICAgIHZhbHVlRnJvbToKICAgICAgICAgICAgICAgIGNvbmZpZ01hcEtleVJlZjoKICAgICAgICAgICAgICAgICAgbmFtZTogY2FsaWNvLWNvbmZpZwogICAgICAgICAgICAgICAgICBrZXk6IGV0Y2RfY2VydAogICAgICAgICAgICAjIENob29zZSB3aGljaCBjb250cm9sbGVycyB0byBydW4uCiAgICAgICAgICAgIC0gbmFtZTogRU5BQkxFRF9DT05UUk9MTEVSUwogICAgICAgICAgICAgIHZhbHVlOiBwb2xpY3kscHJvZmlsZSx3b3JrbG9hZGVuZHBvaW50LG5vZGUsc2VydmljZWFjY291bnQKICAgICAgICAgIHZvbHVtZU1vdW50czoKICAgICAgICAgICAgIyBNb3VudCBpbiB0aGUgZXRjZCBUTFMgc2VjcmV0cy4KICAgICAgICAgICAgLSBtb3VudFBhdGg6IC9jYWxpY28tc2VjcmV0cwogICAgICAgICAgICAgIG5hbWU6IGV0Y2QtY2VydHMKICAgICAgICAgIHJlc291cmNlczoKICAgICAgICAgICAgcmVxdWVzdHM6CiAgICAgICAgICAgICAgY3B1OiAyNTBtCiAgICAgICAgICAgICAgbWVtb3J5OiAxMDBNaQogICAgICAgICAgICBsaW1pdHM6CiAgICAgICAgICAgICAgY3B1OiAyNTBtCiAgICAgICAgICAgICAgbWVtb3J5OiAxMDBNaQogICAgICAgICAgcmVhZGluZXNzUHJvYmU6CiAgICAgICAgICAgIGV4ZWM6CiAgICAgICAgICAgICAgY29tbWFuZDoKICAgICAgICAgICAgICAgIC0gL3Vzci9iaW4vY2hlY2stc3RhdHVzCiAgICAgICAgICAgICAgICAtIC1yCiAgICAgIHZvbHVtZXM6CiAgICAgICAgIyBNb3VudCBpbiB0aGUgZXRjZCBUTFMgc2VjcmV0cyB3aXRoIG1vZGUgNDAwLgogICAgICAgICMgU2VlIGh0dHBzOi8va3ViZXJuZXRlcy5pby9kb2NzL2NvbmNlcHRzL2NvbmZpZ3VyYXRpb24vc2VjcmV0LwogICAgICAgIC0gbmFtZTogZXRjZC1jZXJ0cwogICAgICAgICAgaG9zdFBhdGg6CiAgICAgICAgICAgIHBhdGg6IC9ldGMva3ViZXJuZXRlcy9zc2wvZXRjZAoKLS0tCgphcGlWZXJzaW9uOiB2MQpraW5kOiBTZXJ2aWNlQWNjb3VudAptZXRhZGF0YToKICBuYW1lOiBjYWxpY28ta3ViZS1jb250cm9sbGVycwogIG5hbWVzcGFjZToga3ViZS1zeXN0ZW0KLS0tCi0tLQojIEluY2x1ZGUgYSBjbHVzdGVycm9sZSBmb3IgdGhlIGt1YmUtY29udHJvbGxlcnMgY29tcG9uZW50LAojIGFuZCBiaW5kIGl0IHRvIHRoZSBjYWxpY28ta3ViZS1jb250cm9sbGVycyBzZXJ2aWNlYWNjb3VudC4Ka2luZDogQ2x1c3RlclJvbGUKYXBpVmVyc2lvbjogcmJhYy5hdXRob3JpemF0aW9uLms4cy5pby92MQptZXRhZGF0YToKICBuYW1lOiBjYWxpY28ta3ViZS1jb250cm9sbGVycwpydWxlczoKLSBhcGlHcm91cHM6CiAgLSAiIgogIHJlc291cmNlczoKICAtIG5vZGVzCiAgLSBwb2RzCiAgLSBuYW1lc3BhY2VzCiAgLSBzZXJ2aWNlYWNjb3VudHMKICB2ZXJiczoKICAtIHdhdGNoCiAgLSBsaXN0CiAgLSBnZXQKLSBhcGlHcm91cHM6CiAgLSBuZXR3b3JraW5nLms4cy5pbwogIHJlc291cmNlczoKICAtIG5ldHdvcmtwb2xpY2llcwogIHZlcmJzOgogIC0gd2F0Y2gKICAtIGxpc3QKICAjIElQQU0gcmVzb3VyY2VzIGFyZSBtYW5pcHVsYXRlZCB3aGVuIG5vZGVzIGFyZSBkZWxldGVkLgotIGFwaUdyb3VwczoKICAtIGNyZC5wcm9qZWN0Y2FsaWNvLm9yZwogIHJlc291cmNlczoKICAtIGlwcG9vbHMKICB2ZXJiczoKICAtIGxpc3QKLSBhcGlHcm91cHM6CiAgLSBjcmQucHJvamVjdGNhbGljby5vcmcKICByZXNvdXJjZXM6CiAgLSBibG9ja2FmZmluaXRpZXMKICAtIGlwYW1ibG9ja3MKICAtIGlwYW1oYW5kbGVzCiAgdmVyYnM6CiAgLSBnZXQKICAtIGxpc3QKICAtIGNyZWF0ZQogIC0gdXBkYXRlCiAgLSBkZWxldGUKLSBhcGlHcm91cHM6CiAgLSBjcmQucHJvamVjdGNhbGljby5vcmcKICByZXNvdXJjZXM6CiAgLSBjbHVzdGVyaW5mb3JtYXRpb25zCiAgdmVyYnM6CiAgLSBnZXQKICAtIGNyZWF0ZQogIC0gdXBkYXRlCi0tLQpraW5kOiBDbHVzdGVyUm9sZUJpbmRpbmcKYXBpVmVyc2lvbjogcmJhYy5hdXRob3JpemF0aW9uLms4cy5pby92MQptZXRhZGF0YToKICBuYW1lOiBjYWxpY28ta3ViZS1jb250cm9sbGVycwpyb2xlUmVmOgogIGFwaUdyb3VwOiByYmFjLmF1dGhvcml6YXRpb24uazhzLmlvCiAga2luZDogQ2x1c3RlclJvbGUKICBuYW1lOiBjYWxpY28ta3ViZS1jb250cm9sbGVycwpzdWJqZWN0czoKICAtIGtpbmQ6IFNlcnZpY2VBY2NvdW50CiAgICBuYW1lOiBjYWxpY28ta3ViZS1jb250cm9sbGVycwogICAgbmFtZXNwYWNlOiBrdWJlLXN5c3RlbQotLS0KIyBJbmNsdWRlIGEgY2x1c3RlcnJvbGUgZm9yIHRoZSBjYWxpY28tbm9kZSBEYWVtb25TZXQsCiMgYW5kIGJpbmQgaXQgdG8gdGhlIGNhbGljby1ub2RlIHNlcnZpY2VhY2NvdW50LgpraW5kOiBDbHVzdGVyUm9sZQphcGlWZXJzaW9uOiByYmFjLmF1dGhvcml6YXRpb24uazhzLmlvL3YxCm1ldGFkYXRhOgogIG5hbWU6IGNhbGljby1ub2RlCnJ1bGVzOgogICMgVGhlIENOSSBwbHVnaW4gbmVlZHMgdG8gZ2V0IHBvZHMsIG5vZGVzLCBhbmQgbmFtZXNwYWNlcy4KICAtIGFwaUdyb3VwczogWyIiXQogICAgcmVzb3VyY2VzOgogICAgICAtIHBvZHMKICAgICAgLSBub2RlcwogICAgICAtIG5hbWVzcGFjZXMKICAgIHZlcmJzOgogICAgICAtIGdldAogIC0gYXBpR3JvdXBzOiBbIiJdCiAgICByZXNvdXJjZXM6CiAgICAgIC0gZW5kcG9pbnRzCiAgICAgIC0gc2VydmljZXMKICAgIHZlcmJzOgogICAgICAjIFVzZWQgdG8gZGlzY292ZXIgc2VydmljZSBJUHMgZm9yIGFkdmVydGlzZW1lbnQuCiAgICAgIC0gd2F0Y2gKICAgICAgLSBsaXN0CiAgICAgICMgVXNlZCB0byBkaXNjb3ZlciBUeXBoYXMuCiAgICAgIC0gZ2V0CiAgLSBhcGlHcm91cHM6IFsiIl0KICAgIHJlc291cmNlczoKICAgICAgLSBub2Rlcy9zdGF0dXMKICAgIHZlcmJzOgogICAgICAjIE5lZWRlZCBmb3IgY2xlYXJpbmcgTm9kZU5ldHdvcmtVbmF2YWlsYWJsZSBmbGFnLgogICAgICAtIHBhdGNoCiAgICAgICMgQ2FsaWNvIHN0b3JlcyBzb21lIGNvbmZpZ3VyYXRpb24gaW5mb3JtYXRpb24gaW4gbm9kZSBhbm5vdGF0aW9ucy4KICAgICAgLSB1cGRhdGUKICAjIFdhdGNoIGZvciBjaGFuZ2VzIHRvIEt1YmVybmV0ZXMgTmV0d29ya1BvbGljaWVzLgogIC0gYXBpR3JvdXBzOiBbIm5ldHdvcmtpbmcuazhzLmlvIl0KICAgIHJlc291cmNlczoKICAgICAgLSBuZXR3b3JrcG9saWNpZXMKICAgIHZlcmJzOgogICAgICAtIHdhdGNoCiAgICAgIC0gbGlzdAogICMgVXNlZCBieSBDYWxpY28gZm9yIHBvbGljeSBpbmZvcm1hdGlvbi4KICAtIGFwaUdyb3VwczogWyIiXQogICAgcmVzb3VyY2VzOgogICAgICAtIHBvZHMKICAgICAgLSBuYW1lc3BhY2VzCiAgICAgIC0gc2VydmljZWFjY291bnRzCiAgICB2ZXJiczoKICAgICAgLSBsaXN0CiAgICAgIC0gd2F0Y2gKICAjIFRoZSBDTkkgcGx1Z2luIHBhdGNoZXMgcG9kcy9zdGF0dXMuCiAgLSBhcGlHcm91cHM6IFsiIl0KICAgIHJlc291cmNlczoKICAgICAgLSBwb2RzL3N0YXR1cwogICAgdmVyYnM6CiAgICAgIC0gcGF0Y2gKICAjIENhbGljbyBtb25pdG9ycyB2YXJpb3VzIENSRHMgZm9yIGNvbmZpZy4KICAtIGFwaUdyb3VwczogWyJjcmQucHJvamVjdGNhbGljby5vcmciXQogICAgcmVzb3VyY2VzOgogICAgICAtIGdsb2JhbGZlbGl4Y29uZmlncwogICAgICAtIGZlbGl4Y29uZmlndXJhdGlvbnMKICAgICAgLSBiZ3BwZWVycwogICAgICAtIGdsb2JhbGJncGNvbmZpZ3MKICAgICAgLSBiZ3Bjb25maWd1cmF0aW9ucwogICAgICAtIGlwcG9vbHMKICAgICAgLSBpcGFtYmxvY2tzCiAgICAgIC0gZ2xvYmFsbmV0d29ya3BvbGljaWVzCiAgICAgIC0gZ2xvYmFsbmV0d29ya3NldHMKICAgICAgLSBuZXR3b3JrcG9saWNpZXMKICAgICAgLSBuZXR3b3Jrc2V0cwogICAgICAtIGNsdXN0ZXJpbmZvcm1hdGlvbnMKICAgICAgLSBob3N0ZW5kcG9pbnRzCiAgICAgIC0gYmxvY2thZmZpbml0aWVzCiAgICB2ZXJiczoKICAgICAgLSBnZXQKICAgICAgLSBsaXN0CiAgICAgIC0gd2F0Y2gKICAjIENhbGljbyBtdXN0IGNyZWF0ZSBhbmQgdXBkYXRlIHNvbWUgQ1JEcyBvbiBzdGFydHVwLgogIC0gYXBpR3JvdXBzOiBbImNyZC5wcm9qZWN0Y2FsaWNvLm9yZyJdCiAgICByZXNvdXJjZXM6CiAgICAgIC0gaXBwb29scwogICAgICAtIGZlbGl4Y29uZmlndXJhdGlvbnMKICAgICAgLSBjbHVzdGVyaW5mb3JtYXRpb25zCiAgICB2ZXJiczoKICAgICAgLSBjcmVhdGUKICAgICAgLSB1cGRhdGUKICAjIENhbGljbyBzdG9yZXMgc29tZSBjb25maWd1cmF0aW9uIGluZm9ybWF0aW9uIG9uIHRoZSBub2RlLgogIC0gYXBpR3JvdXBzOiBbIiJdCiAgICByZXNvdXJjZXM6CiAgICAgIC0gbm9kZXMKICAgIHZlcmJzOgogICAgICAtIGdldAogICAgICAtIGxpc3QKICAgICAgLSB3YXRjaAogICMgVGhlc2UgcGVybWlzc2lvbnMgYXJlIG9ubHkgcmVxdXJpZWQgZm9yIHVwZ3JhZGUgZnJvbSB2Mi42LCBhbmQgY2FuCiAgIyBiZSByZW1vdmVkIGFmdGVyIHVwZ3JhZGUgb3Igb24gZnJlc2ggaW5zdGFsbGF0aW9ucy4KICAtIGFwaUdyb3VwczogWyJjcmQucHJvamVjdGNhbGljby5vcmciXQogICAgcmVzb3VyY2VzOgogICAgICAtIGJncGNvbmZpZ3VyYXRpb25zCiAgICAgIC0gYmdwcGVlcnMKICAgIHZlcmJzOgogICAgICAtIGNyZWF0ZQogICAgICAtIHVwZGF0ZQogICMgVGhlc2UgcGVybWlzc2lvbnMgYXJlIHJlcXVpcmVkIGZvciBDYWxpY28gQ05JIHRvIHBlcmZvcm0gSVBBTSBhbGxvY2F0aW9ucy4KICAtIGFwaUdyb3VwczogWyJjcmQucHJvamVjdGNhbGljby5vcmciXQogICAgcmVzb3VyY2VzOgogICAgICAtIGJsb2NrYWZmaW5pdGllcwogICAgICAtIGlwYW1ibG9ja3MKICAgICAgLSBpcGFtaGFuZGxlcwogICAgdmVyYnM6CiAgICAgIC0gZ2V0CiAgICAgIC0gbGlzdAogICAgICAtIGNyZWF0ZQogICAgICAtIHVwZGF0ZQogICAgICAtIGRlbGV0ZQogIC0gYXBpR3JvdXBzOiBbImNyZC5wcm9qZWN0Y2FsaWNvLm9yZyJdCiAgICByZXNvdXJjZXM6CiAgICAgIC0gaXBhbWNvbmZpZ3MKICAgIHZlcmJzOgogICAgICAtIGdldAogICMgQmxvY2sgYWZmaW5pdGllcyBtdXN0IGFsc28gYmUgd2F0Y2hhYmxlIGJ5IGNvbmZkIGZvciByb3V0ZSBhZ2dyZWdhdGlvbi4KICAtIGFwaUdyb3VwczogWyJjcmQucHJvamVjdGNhbGljby5vcmciXQogICAgcmVzb3VyY2VzOgogICAgICAtIGJsb2NrYWZmaW5pdGllcwogICAgdmVyYnM6CiAgICAgIC0gd2F0Y2gKICAjIFRoZSBDYWxpY28gSVBBTSBtaWdyYXRpb24gbmVlZHMgdG8gZ2V0IGRhZW1vbnNldHMuIFRoZXNlIHBlcm1pc3Npb25zIGNhbiBiZQogICMgcmVtb3ZlZCBpZiBub3QgdXBncmFkaW5nIGZyb20gYW4gaW5zdGFsbGF0aW9uIHVzaW5nIGhvc3QtbG9jYWwgSVBBTS4KICAtIGFwaUdyb3VwczogWyJhcHBzIl0KICAgIHJlc291cmNlczoKICAgICAgLSBkYWVtb25zZXRzCiAgICB2ZXJiczoKICAgICAgLSBnZXQKLS0tCmFwaVZlcnNpb246IHJiYWMuYXV0aG9yaXphdGlvbi5rOHMuaW8vdjEKa2luZDogQ2x1c3RlclJvbGVCaW5kaW5nCm1ldGFkYXRhOgogIG5hbWU6IGNhbGljby1ub2RlCnJvbGVSZWY6CiAgYXBpR3JvdXA6IHJiYWMuYXV0aG9yaXphdGlvbi5rOHMuaW8KICBraW5kOiBDbHVzdGVyUm9sZQogIG5hbWU6IGNhbGljby1ub2RlCnN1YmplY3RzOgogIC0ga2luZDogU2VydmljZUFjY291bnQKICAgIG5hbWU6IGNhbGljby1ub2RlCiAgICBuYW1lc3BhY2U6IGt1YmUtc3lzdGVtCg=="
+    - path: /srv/ingress-controller-svc.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjogdjEKa2luZDogU2VydmljZQptZXRhZGF0YToKICBhbm5vdGF0aW9uczoKICAgIHByb21ldGhldXMuaW8vcG9ydDogIjEwMjU0IgogICAgcHJvbWV0aGV1cy5pby9zY3JhcGU6ICJ0cnVlIgogIG5hbWU6IG5naW54LWluZ3Jlc3MtY29udHJvbGxlcgogIG5hbWVzcGFjZToga3ViZS1zeXN0ZW0KICBsYWJlbHM6CiAgICBrOHMtYXBwOiBuZ2lueC1pbmdyZXNzLWNvbnRyb2xsZXIKc3BlYzoKICB0eXBlOiBOb2RlUG9ydAogIHBvcnRzOgogIC0gbmFtZTogaHR0cAogICAgcG9ydDogODAKICAgIG5vZGVQb3J0OiAzMDAxMAogICAgcHJvdG9jb2w6IFRDUAogICAgdGFyZ2V0UG9ydDogODAKICAtIG5hbWU6IGh0dHBzCiAgICBwb3J0OiA0NDMKICAgIG5vZGVQb3J0OiAzMDAxMQogICAgcHJvdG9jb2w6IFRDUAogICAgdGFyZ2V0UG9ydDogNDQzCiAgc2VsZWN0b3I6CiAgICBrOHMtYXBwOiBuZ2lueC1pbmdyZXNzLWNvbnRyb2xsZXIK"
+
+    - path: /etc/kubernetes/config/proxy-config.yml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjoga3ViZXByb3h5LmNvbmZpZy5rOHMuaW8vdjFhbHBoYTEKY2xpZW50Q29ubmVjdGlvbjoKICBrdWJlY29uZmlnOiAvZXRjL2t1YmVybmV0ZXMvY29uZmlnL3Byb3h5LWt1YmVjb25maWcueWFtbApraW5kOiBLdWJlUHJveHlDb25maWd1cmF0aW9uCm1vZGU6IGlwdGFibGVzCnJlc291cmNlQ29udGFpbmVyOiAva3ViZS1wcm94eQpjbHVzdGVyQ0lEUjogQ2FsaWNvU3VibmV0L0NhbGljb0NJRFIKbWV0cmljc0JpbmRBZGRyZXNzOiAwLjAuMC4wOjEwMjQ5Cg=="
+
+    - path: /srv/kube-proxy-config.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjoga3ViZXByb3h5LmNvbmZpZy5rOHMuaW8vdjFhbHBoYTEKY2xpZW50Q29ubmVjdGlvbjoKICBrdWJlY29uZmlnOiAvZXRjL2t1YmVybmV0ZXMvY29uZmlnL3Byb3h5LWt1YmVjb25maWcueWFtbApraW5kOiBLdWJlUHJveHlDb25maWd1cmF0aW9uCm1vZGU6IGlwdGFibGVzCnJlc291cmNlQ29udGFpbmVyOiAva3ViZS1wcm94eQpjbHVzdGVyQ0lEUjogQ2FsaWNvU3VibmV0L0NhbGljb0NJRFIKbWV0cmljc0JpbmRBZGRyZXNzOiAwLjAuMC4wOjEwMjQ5Cg=="
+
+    - path: /srv/kube-proxy-sa.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjogdjEKa2luZDogU2VydmljZUFjY291bnQKbWV0YWRhdGE6CiAgbmFtZToga3ViZS1wcm94eQogIG5hbWVzcGFjZToga3ViZS1zeXN0ZW0="
+
+    - path: /srv/kube-proxy-ds.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,a2luZDogRGFlbW9uU2V0CmFwaVZlcnNpb246IGV4dGVuc2lvbnMvdjFiZXRhMQptZXRhZGF0YToKICBuYW1lOiBrdWJlLXByb3h5CiAgbmFtZXNwYWNlOiBrdWJlLXN5c3RlbQogIGxhYmVsczoKICAgIGNvbXBvbmVudDoga3ViZS1wcm94eQogICAgazhzLWFwcDoga3ViZS1wcm94eQogICAga3ViZXJuZXRlcy5pby9jbHVzdGVyLXNlcnZpY2U6ICJ0cnVlIgpzcGVjOgogIHNlbGVjdG9yOgogICAgbWF0Y2hMYWJlbHM6CiAgICAgIGs4cy1hcHA6IGt1YmUtcHJveHkKICB1cGRhdGVTdHJhdGVneToKICAgIHR5cGU6IFJvbGxpbmdVcGRhdGUKICAgIHJvbGxpbmdVcGRhdGU6CiAgICAgIG1heFVuYXZhaWxhYmxlOiAxCiAgdGVtcGxhdGU6CiAgICBtZXRhZGF0YToKICAgICAgbGFiZWxzOgogICAgICAgIGNvbXBvbmVudDoga3ViZS1wcm94eQogICAgICAgIGs4cy1hcHA6IGt1YmUtcHJveHkKICAgICAgICBrdWJlcm5ldGVzLmlvL2NsdXN0ZXItc2VydmljZTogInRydWUiCiAgICAgIGFubm90YXRpb25zOgogICAgICAgIHNjaGVkdWxlci5hbHBoYS5rdWJlcm5ldGVzLmlvL2NyaXRpY2FsLXBvZDogJycKICAgIHNwZWM6CiAgICAgIHRvbGVyYXRpb25zOgogICAgICAjIE1hcmsgdGhlIHBvZCBhcyBhIGNyaXRpY2FsIGFkZC1vbiBmb3IgcmVzY2hlZHVsaW5nLgogICAgICAtIGtleTogQ3JpdGljYWxBZGRvbnNPbmx5CiAgICAgICAgb3BlcmF0b3I6IEV4aXN0cwogICAgICAjIE1ha2Ugc3VyZSB0aGUgcG9kIGdldHMgc2NoZWR1bGVkIG9uIGFsbCBub2Rlcy4KICAgICAgLSBvcGVyYXRvcjogRXhpc3RzCiAgICAgIGhvc3ROZXR3b3JrOiB0cnVlCiAgICAgIHByaW9yaXR5Q2xhc3NOYW1lOiBzeXN0ZW0tbm9kZS1jcml0aWNhbAogICAgICBzZXJ2aWNlQWNjb3VudE5hbWU6IGt1YmUtcHJveHkKICAgICAgY29udGFpbmVyczoKICAgICAgICAtIG5hbWU6IGt1YmUtcHJveHkKICAgICAgICAgIGltYWdlOiBSZWdpc3RyeURvbWFpbi9LOHNJbWFnZQogICAgICAgICAgY29tbWFuZDoKICAgICAgICAgIC0gL2h5cGVya3ViZQogICAgICAgICAgLSBrdWJlLXByb3h5CiAgICAgICAgICAtIC0tY29uZmlnPS9ldGMva3ViZXJuZXRlcy9jb25maWcvcHJveHktY29uZmlnLnltbAogICAgICAgICAgLSAtLXY9MgogICAgICAgICAgbGl2ZW5lc3NQcm9iZToKICAgICAgICAgICAgaHR0cEdldDoKICAgICAgICAgICAgICBwYXRoOiAvaGVhbHRoegogICAgICAgICAgICAgIHBvcnQ6IDEwMjU2CiAgICAgICAgICAgIGluaXRpYWxEZWxheVNlY29uZHM6IDEwCiAgICAgICAgICAgIHBlcmlvZFNlY29uZHM6IDMKICAgICAgICAgIHJlc291cmNlczoKICAgICAgICAgICAgcmVxdWVzdHM6CiAgICAgICAgICAgICAgbWVtb3J5OiAiODBNaSIKICAgICAgICAgICAgICBjcHU6ICI3NW0iCiAgICAgICAgICBzZWN1cml0eUNvbnRleHQ6CiAgICAgICAgICAgIHByaXZpbGVnZWQ6IHRydWUKICAgICAgICAgIHZvbHVtZU1vdW50czoKICAgICAgICAgIC0gbW91bnRQYXRoOiAvZXRjL3NzbC9jZXJ0cwogICAgICAgICAgICBuYW1lOiBzc2wtY2VydHMtaG9zdAogICAgICAgICAgICByZWFkT25seTogdHJ1ZQogICAgICAgICAgLSBtb3VudFBhdGg6IC9ldGMva3ViZXJuZXRlcy9jb25maWcvCiAgICAgICAgICAgIG5hbWU6IGs4cy1jb25maWcKICAgICAgICAgIC0gbW91bnRQYXRoOiAvZXRjL2t1YmVybmV0ZXMva3ViZWNvbmZpZy8KICAgICAgICAgICAgbmFtZTogazhzLWt1YmVjb25maWcKICAgICAgICAgICAgcmVhZE9ubHk6IHRydWUKICAgICAgICAgIC0gbW91bnRQYXRoOiAvZXRjL2t1YmVybmV0ZXMvc3NsCiAgICAgICAgICAgIG5hbWU6IHNzbC1jZXJ0cy1rdWJlcm5ldGVzCiAgICAgICAgICAgIHJlYWRPbmx5OiB0cnVlCiAgICAgICAgICAtIG1vdW50UGF0aDogL2xpYi9tb2R1bGVzCiAgICAgICAgICAgIG5hbWU6IGxpYi1tb2R1bGVzCiAgICAgICAgICAgIHJlYWRPbmx5OiB0cnVlCiAgICAgIHZvbHVtZXM6CiAgICAgIC0gaG9zdFBhdGg6CiAgICAgICAgICBwYXRoOiAvZXRjL2t1YmVybmV0ZXMvY29uZmlnLwogICAgICAgIG5hbWU6IGs4cy1jb25maWcKICAgICAgLSBob3N0UGF0aDoKICAgICAgICAgIHBhdGg6IC9ldGMva3ViZXJuZXRlcy9jb25maWcvCiAgICAgICAgbmFtZTogazhzLWt1YmVjb25maWcKICAgICAgLSBob3N0UGF0aDoKICAgICAgICAgIHBhdGg6IC9ldGMva3ViZXJuZXRlcy9zc2wKICAgICAgICBuYW1lOiBzc2wtY2VydHMta3ViZXJuZXRlcwogICAgICAtIGhvc3RQYXRoOgogICAgICAgICAgcGF0aDogL3Vzci9zaGFyZS9jYS1jZXJ0aWZpY2F0ZXMKICAgICAgICBuYW1lOiBzc2wtY2VydHMtaG9zdAogICAgICAtIGhvc3RQYXRoOgogICAgICAgICAgcGF0aDogL2xpYi9tb2R1bGVzCiAgICAgICAgbmFtZTogbGliLW1vZHVsZXMK"
+
+    - path: /srv/rbac_bindings.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,IyMgVXNlcgpraW5kOiBDbHVzdGVyUm9sZUJpbmRpbmcKYXBpVmVyc2lvbjogcmJhYy5hdXRob3JpemF0aW9uLms4cy5pby92MQptZXRhZGF0YToKICBuYW1lOiBnaWFudHN3YXJtLWFkbWluCnN1YmplY3RzOgotIGtpbmQ6IFVzZXIKICBuYW1lOiBBUElEb21haW4KICBhcGlHcm91cDogcmJhYy5hdXRob3JpemF0aW9uLms4cy5pbwpyb2xlUmVmOgogIGtpbmQ6IENsdXN0ZXJSb2xlCiAgbmFtZTogY2x1c3Rlci1hZG1pbgogIGFwaUdyb3VwOiByYmFjLmF1dGhvcml6YXRpb24uazhzLmlvCi0tLQojIyBXb3JrZXIKa2luZDogQ2x1c3RlclJvbGVCaW5kaW5nCmFwaVZlcnNpb246IHJiYWMuYXV0aG9yaXphdGlvbi5rOHMuaW8vdjEKbWV0YWRhdGE6CiAgbmFtZToga3ViZWxldApzdWJqZWN0czoKLSBraW5kOiBVc2VyCiAgbmFtZTogSzhzS3ViZWxldERvbWFpbgogIGFwaUdyb3VwOiByYmFjLmF1dGhvcml6YXRpb24uazhzLmlvCnJvbGVSZWY6CiAga2luZDogQ2x1c3RlclJvbGUKICBuYW1lOiBzeXN0ZW06bm9kZQogIGFwaUdyb3VwOiByYmFjLmF1dGhvcml6YXRpb24uazhzLmlvCi0tLQpraW5kOiBDbHVzdGVyUm9sZUJpbmRpbmcKYXBpVmVyc2lvbjogcmJhYy5hdXRob3JpemF0aW9uLms4cy5pby92MQptZXRhZGF0YToKICBuYW1lOiBwcm94eQpzdWJqZWN0czoKLSBraW5kOiBVc2VyCiAgbmFtZTogSzhzS3ViZWxldERvbWFpbgogIGFwaUdyb3VwOiByYmFjLmF1dGhvcml6YXRpb24uazhzLmlvCnJvbGVSZWY6CiAga2luZDogQ2x1c3RlclJvbGUKICBuYW1lOiBzeXN0ZW06bm9kZS1wcm94aWVyCiAgYXBpR3JvdXA6IHJiYWMuYXV0aG9yaXphdGlvbi5rOHMuaW8KLS0tCiMjIE1hc3RlcgpraW5kOiBDbHVzdGVyUm9sZUJpbmRpbmcKYXBpVmVyc2lvbjogcmJhYy5hdXRob3JpemF0aW9uLms4cy5pby92MQptZXRhZGF0YToKICBuYW1lOiBrdWJlLWNvbnRyb2xsZXItbWFuYWdlcgpzdWJqZWN0czoKLSBraW5kOiBVc2VyCiAgbmFtZTogQVBJRG9tYWluCiAgYXBpR3JvdXA6IHJiYWMuYXV0aG9yaXphdGlvbi5rOHMuaW8Kcm9sZVJlZjoKICBraW5kOiBDbHVzdGVyUm9sZQogIG5hbWU6IHN5c3RlbTprdWJlLWNvbnRyb2xsZXItbWFuYWdlcgogIGFwaUdyb3VwOiByYmFjLmF1dGhvcml6YXRpb24uazhzLmlvCi0tLQpraW5kOiBDbHVzdGVyUm9sZUJpbmRpbmcKYXBpVmVyc2lvbjogcmJhYy5hdXRob3JpemF0aW9uLms4cy5pby92MQptZXRhZGF0YToKICBuYW1lOiBrdWJlLXNjaGVkdWxlcgpzdWJqZWN0czoKLSBraW5kOiBVc2VyCiAgbmFtZTogQVBJRG9tYWluCiAgYXBpR3JvdXA6IHJiYWMuYXV0aG9yaXphdGlvbi5rOHMuaW8Kcm9sZVJlZjoKICBraW5kOiBDbHVzdGVyUm9sZQogIG5hbWU6IHN5c3RlbTprdWJlLXNjaGVkdWxlcgogIGFwaUdyb3VwOiByYmFjLmF1dGhvcml6YXRpb24uazhzLmlvCi0tLQojIyBub2RlLW9wZXJhdG9yCmtpbmQ6IENsdXN0ZXJSb2xlQmluZGluZwphcGlWZXJzaW9uOiByYmFjLmF1dGhvcml6YXRpb24uazhzLmlvL3YxCm1ldGFkYXRhOgogIG5hbWU6IG5vZGUtb3BlcmF0b3IKc3ViamVjdHM6Ci0ga2luZDogVXNlcgogIG5hbWU6IG5vZGUtb3BlcmF0b3IuQ2x1c3RlckJhc2VEb21haW4KICBhcGlHcm91cDogcmJhYy5hdXRob3JpemF0aW9uLms4cy5pbwpyb2xlUmVmOgogIGtpbmQ6IENsdXN0ZXJSb2xlCiAgbmFtZTogbm9kZS1vcGVyYXRvcgogIGFwaUdyb3VwOiByYmFjLmF1dGhvcml6YXRpb24uazhzLmlvCi0tLQojIyBwcm9tZXRoZXVzLWV4dGVybmFsIGlzIHByb21ldGhldXMgZnJvbSBob3N0IGNsdXN0ZXIKa2luZDogQ2x1c3RlclJvbGVCaW5kaW5nCmFwaVZlcnNpb246IHJiYWMuYXV0aG9yaXphdGlvbi5rOHMuaW8vdjEKbWV0YWRhdGE6CiAgbmFtZTogcHJvbWV0aGV1cy1leHRlcm5hbApzdWJqZWN0czoKLSBraW5kOiBVc2VyCiAgbmFtZTogcHJvbWV0aGV1cy5DbHVzdGVyQmFzZURvbWFpbgogIGFwaUdyb3VwOiByYmFjLmF1dGhvcml6YXRpb24uazhzLmlvCnJvbGVSZWY6CiAga2luZDogQ2x1c3RlclJvbGUKICBuYW1lOiBwcm9tZXRoZXVzLWV4dGVybmFsCiAgYXBpR3JvdXA6IHJiYWMuYXV0aG9yaXphdGlvbi5rOHMuaW8K"
+
+    - path: /srv/rbac_roles.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,IyMgbm9kZS1vcGVyYXRvcgpraW5kOiBDbHVzdGVyUm9sZQphcGlWZXJzaW9uOiByYmFjLmF1dGhvcml6YXRpb24uazhzLmlvL3YxCm1ldGFkYXRhOgogIG5hbWU6IG5vZGUtb3BlcmF0b3IKcnVsZXM6Ci0gYXBpR3JvdXBzOiBbIiJdCiAgcmVzb3VyY2VzOiBbIm5vZGVzIl0KICB2ZXJiczogWyJwYXRjaCJdCi0gYXBpR3JvdXBzOiBbIiJdCiAgcmVzb3VyY2VzOiBbInBvZHMiXQogIHZlcmJzOiBbImxpc3QiLCAiZGVsZXRlIl0KLS0tCiMjIHByb21ldGhldXMtZXh0ZXJuYWwKa2luZDogQ2x1c3RlclJvbGUKYXBpVmVyc2lvbjogcmJhYy5hdXRob3JpemF0aW9uLms4cy5pby92MQptZXRhZGF0YToKICBuYW1lOiBwcm9tZXRoZXVzLWV4dGVybmFsCnJ1bGVzOgotIGFwaUdyb3VwczogWyIiXQogIHJlc291cmNlczoKICAtIG5vZGVzCiAgLSBub2Rlcy9wcm94eQogIC0gc2VydmljZXMKICAtIGVuZHBvaW50cwogIC0gcG9kcwogIHZlcmJzOiBbImdldCIsICJsaXN0IiwgIndhdGNoIl0KLSBhcGlHcm91cHM6CiAgLSBleHRlbnNpb25zCiAgcmVzb3VyY2VzOgogIC0gaW5ncmVzc2VzCiAgdmVyYnM6IFsiZ2V0IiwgImxpc3QiLCAid2F0Y2giXQotIG5vblJlc291cmNlVVJMczogWyIvbWV0cmljcyJdCiAgdmVyYnM6IFsiZ2V0Il0K"
+
+    - path: /srv/priority_classes.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjogc2NoZWR1bGluZy5rOHMuaW8vdjEKa2luZDogUHJpb3JpdHlDbGFzcwptZXRhZGF0YToKICBuYW1lOiBnaWFudHN3YXJtLWNyaXRpY2FsCnZhbHVlOiAxMDAwMDAwMDAwCmdsb2JhbERlZmF1bHQ6IGZhbHNlCmRlc2NyaXB0aW9uOiAiVGhpcyBwcmlvcml0eSBjbGFzcyBpcyB1c2VkIGJ5IGdpYW50c3dhcm0ga3ViZXJuZXRlcyBjb21wb25lbnRzLiIK"
+
+    - path: /srv/psp_policies.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjogZXh0ZW5zaW9ucy92MWJldGExCmtpbmQ6IFBvZFNlY3VyaXR5UG9saWN5Cm1ldGFkYXRhOgogIG5hbWU6IHByaXZpbGVnZWQKICBhbm5vdGF0aW9uczoKICAgIHNlY2NvbXAuc2VjdXJpdHkuYWxwaGEua3ViZXJuZXRlcy5pby9hbGxvd2VkUHJvZmlsZU5hbWVzOiAnKicKc3BlYzoKICBhbGxvd1ByaXZpbGVnZUVzY2FsYXRpb246IHRydWUKICBhbGxvd2VkQ2FwYWJpbGl0aWVzOgogIC0gJyonCiAgZnNHcm91cDoKICAgIHJ1bGU6IFJ1bkFzQW55CiAgcHJpdmlsZWdlZDogdHJ1ZQogIHJ1bkFzVXNlcjoKICAgIHJ1bGU6IFJ1bkFzQW55CiAgc2VMaW51eDoKICAgIHJ1bGU6IFJ1bkFzQW55CiAgc3VwcGxlbWVudGFsR3JvdXBzOgogICAgcnVsZTogUnVuQXNBbnkKICB2b2x1bWVzOgogIC0gJyonCiAgaG9zdFBJRDogdHJ1ZQogIGhvc3RJUEM6IHRydWUKICBob3N0TmV0d29yazogdHJ1ZQogIGhvc3RQb3J0czoKICAtIG1pbjogMAogICAgbWF4OiA2NTUzNgotLS0KLS0tCmFwaVZlcnNpb246IGV4dGVuc2lvbnMvdjFiZXRhMQpraW5kOiBQb2RTZWN1cml0eVBvbGljeQptZXRhZGF0YToKICBuYW1lOiByZXN0cmljdGVkCnNwZWM6CiAgcHJpdmlsZWdlZDogZmFsc2UKICBhbGxvd1ByaXZpbGVnZUVzY2FsYXRpb246IGZhbHNlCiAgcnVuQXNVc2VyOgogICAgcmFuZ2VzOgogICAgICAtIG1heDogNjU1MzUKICAgICAgICBtaW46IDEwMDAKICAgIHJ1bGU6IE11c3RSdW5BcwogIHNlTGludXg6CiAgICBydWxlOiBSdW5Bc0FueQogIHN1cHBsZW1lbnRhbEdyb3VwczoKICAgIHJ1bGU6ICdNdXN0UnVuQXMnCiAgICByYW5nZXM6CiAgICAgIC0gbWluOiAxCiAgICAgICAgbWF4OiA2NTUzNQogIGZzR3JvdXA6CiAgICBydWxlOiAnTXVzdFJ1bkFzJwogICAgcmFuZ2VzOgogICAgICAtIG1pbjogMQogICAgICAgIG1heDogNjU1MzUKICB2b2x1bWVzOgogIC0gJ3NlY3JldCcKICAtICdjb25maWdNYXAnCiAgaG9zdFBJRDogZmFsc2UKICBob3N0SVBDOiBmYWxzZQogIGhvc3ROZXR3b3JrOiBmYWxzZQogIHJlYWRPbmx5Um9vdEZpbGVzeXN0ZW06IGZhbHNlCg=="
+
+    - path: /srv/psp_roles.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,IyByZXN0cmljdGVkUFNQIGdyYW50cyBhY2Nlc3MgdG8gdXNlCiMgdGhlIHJlc3RyaWN0ZWQgUFNQLgphcGlWZXJzaW9uOiByYmFjLmF1dGhvcml6YXRpb24uazhzLmlvL3YxCmtpbmQ6IENsdXN0ZXJSb2xlCm1ldGFkYXRhOgogIG5hbWU6IHJlc3RyaWN0ZWQtcHNwLXVzZXIKcnVsZXM6Ci0gYXBpR3JvdXBzOgogIC0gZXh0ZW5zaW9ucwogIHJlc291cmNlczoKICAtIHBvZHNlY3VyaXR5cG9saWNpZXMKICByZXNvdXJjZU5hbWVzOgogIC0gcmVzdHJpY3RlZAogIHZlcmJzOgogIC0gdXNlCi0tLQojIHByaXZpbGVnZWRQU1AgZ3JhbnRzIGFjY2VzcyB0byB1c2UgdGhlIHByaXZpbGVnZWQKIyBQU1AuCmFwaVZlcnNpb246IHJiYWMuYXV0aG9yaXphdGlvbi5rOHMuaW8vdjEKa2luZDogQ2x1c3RlclJvbGUKbWV0YWRhdGE6CiAgbmFtZTogcHJpdmlsZWdlZC1wc3AtdXNlcgpydWxlczoKLSBhcGlHcm91cHM6CiAgLSBleHRlbnNpb25zCiAgcmVzb3VyY2VzOgogIC0gcG9kc2VjdXJpdHlwb2xpY2llcwogIHJlc291cmNlTmFtZXM6CiAgLSBwcml2aWxlZ2VkCiAgdmVyYnM6CiAgLSB1c2UK"
+
+    - path: /srv/psp_binding.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjogcmJhYy5hdXRob3JpemF0aW9uLms4cy5pby92MQpraW5kOiBDbHVzdGVyUm9sZUJpbmRpbmcKbWV0YWRhdGE6CiAgICBuYW1lOiBwcml2aWxlZ2VkLXBzcC11c2VycwpzdWJqZWN0czoKLSBraW5kOiBTZXJ2aWNlQWNjb3VudAogIG5hbWU6IGNhbGljby1ub2RlCiAgbmFtZXNwYWNlOiBrdWJlLXN5c3RlbQotIGtpbmQ6IFNlcnZpY2VBY2NvdW50CiAgbmFtZTogY2FsaWNvLWt1YmUtY29udHJvbGxlcnMKICBuYW1lc3BhY2U6IGt1YmUtc3lzdGVtCi0ga2luZDogU2VydmljZUFjY291bnQKICBuYW1lOiBrdWJlLXByb3h5CiAgbmFtZXNwYWNlOiBrdWJlLXN5c3RlbQpyb2xlUmVmOgogIGFwaUdyb3VwOiByYmFjLmF1dGhvcml6YXRpb24uazhzLmlvCiAga2luZDogQ2x1c3RlclJvbGUKICBuYW1lOiBwcml2aWxlZ2VkLXBzcC11c2VyCi0tLQojIGdyYW50cyB0aGUgcmVzdHJpY3RlZCBQU1Agcm9sZSB0bwojIHRoZSBhbGwgYXV0aGVudGljYXRlZCB1c2Vycy4KYXBpVmVyc2lvbjogcmJhYy5hdXRob3JpemF0aW9uLms4cy5pby92MQpraW5kOiBDbHVzdGVyUm9sZUJpbmRpbmcKbWV0YWRhdGE6CiAgICBuYW1lOiByZXN0cmljdGVkLXBzcC11c2VycwpzdWJqZWN0czoKLSBraW5kOiBHcm91cAogIGFwaUdyb3VwOiByYmFjLmF1dGhvcml6YXRpb24uazhzLmlvCiAgbmFtZTogc3lzdGVtOmF1dGhlbnRpY2F0ZWQKcm9sZVJlZjoKICBhcGlHcm91cDogcmJhYy5hdXRob3JpemF0aW9uLms4cy5pbwogIGtpbmQ6IENsdXN0ZXJSb2xlCiAgbmFtZTogcmVzdHJpY3RlZC1wc3AtdXNlcgo="
+
+    - path: /srv/network_policies.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,LS0tCmFwaVZlcnNpb246IG5ldHdvcmtpbmcuazhzLmlvL3YxCmtpbmQ6IE5ldHdvcmtQb2xpY3kKbWV0YWRhdGE6CiAgbmFtZTogZGVmYXVsdC1kZW55LWFsbApzcGVjOgogIHBvZFNlbGVjdG9yOiB7fQogIHBvbGljeVR5cGVzOgogIC0gSW5ncmVzcwogIC0gRWdyZXNzCg=="
+
+    - path: /opt/wait-for-domains
+      filesystem: root
+      mode: 0544
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,IyEvYmluL2Jhc2gKZG9tYWlucz0iRXRjZERvbWFpbiBBUElEb21haW4gcXVheS5pbyIKCmZvciBkb21haW4gaW4gJGRvbWFpbnM7IGRvCnVudGlsIG5zbG9va3VwICRkb21haW47IGRvCiAgICBlY2hvICJXYWl0aW5nIGZvciBkb21haW4gJGRvbWFpbiB0byBiZSBhdmFpbGFibGUiCiAgICBzbGVlcCA1CmRvbmUKCmVjaG8gIlN1Y2Nlc3NmdWxseSByZXNvbHZlZCBkb21haW4gJGRvbWFpbiIKZG9uZQo="
+
+    - path: /opt/k8s-addons
+      filesystem: root
+      mode: 0544
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,IyEvYmluL2Jhc2gKCmV4cG9ydCBLVUJFQ09ORklHPS9ldGMva3ViZXJuZXRlcy9rdWJlY29uZmlnL2FkZG9ucy55YW1sCiMga3ViZWN0bCAxLjEyLjIKS1VCRUNUTD1SZWdpc3RyeURvbWFpbi9naWFudHN3YXJtL2RvY2tlci1rdWJlY3RsOmY1Y2FlNDRjNDgwYmQ3OTdkYzc3MGRkNWY2MmQ0MGI3NDA2M2MwZDcKCi91c3IvYmluL2RvY2tlciBwdWxsICRLVUJFQ1RMCgojIHdhaXQgZm9yIGhlYWx0aHkgbWFzdGVyCndoaWxlIFsgIiQoL3Vzci9iaW4vZG9ja2VyIHJ1biAtZSBLVUJFQ09ORklHPSR7S1VCRUNPTkZJR30gLS1uZXQ9aG9zdCAtLXJtIC12IC9ldGMva3ViZXJuZXRlczovZXRjL2t1YmVybmV0ZXMgJEtVQkVDVEwgZ2V0IGNzIHwgZ3JlcCBIZWFsdGh5IHwgd2MgLWwpIiAtbmUgIjMiIF07IGRvIHNsZWVwIDEgJiYgZWNobyAnV2FpdGluZyBmb3IgaGVhbHRoeSBrOHMnOyBkb25lCgojIGxhYmVsIG5hbWVzcGFjZXMgKHJlcXVpcmVkIGZvciBuZXR3b3JrIGVncmVzcyBwb2xpY2llcykKTkFNRVNQQUNFUz0iZGVmYXVsdCBrdWJlLXN5c3RlbSIKZm9yIG5hbWVzcGFjZSBpbiAke05BTUVTUEFDRVN9CmRvCiAgICBpZiAhIC91c3IvYmluL2RvY2tlciBydW4gLWUgS1VCRUNPTkZJRz0ke0tVQkVDT05GSUd9IC0tbmV0PWhvc3QgLS1ybSAtdiAvZXRjL2t1YmVybmV0ZXM6L2V0Yy9rdWJlcm5ldGVzICRLVUJFQ1RMIGdldCBuYW1lc3BhY2VzIC1sIG5hbWU9JHtuYW1lc3BhY2V9IHwgZ3JlcCAke25hbWVzcGFjZX07IHRoZW4KICAgICAgICB3aGlsZQogICAgICAgICAgICAvdXNyL2Jpbi9kb2NrZXIgcnVuIC1lIEtVQkVDT05GSUc9JHtLVUJFQ09ORklHfSAtLW5ldD1ob3N0IC0tcm0gLXYgL2V0Yy9rdWJlcm5ldGVzOi9ldGMva3ViZXJuZXRlcyAkS1VCRUNUTCBsYWJlbCBuYW1lc3BhY2UgJHtuYW1lc3BhY2V9IG5hbWU9JHtuYW1lc3BhY2V9CiAgICAgICAgICAgIFsgIiQ/IiAtbmUgIjAiIF0KICAgICAgICBkbwogICAgICAgICAgICBlY2hvICJmYWlsZWQgdG8gbGFiZWwgbmFtZXNwYWNlICR7bmFtZXNwYWNlfSwgcmV0cnlpbmcgaW4gNSBzZWMiCiAgICAgICAgICAgIHNsZWVwIDVzCiAgICAgICAgZG9uZQogICAgZmkKZG9uZQoKIyBhcHBseSBTZWN1cml0eSBib290c3RyYXAgKFJCQUMgYW5kIFBTUCkKU0VDVVJJVFlfRklMRVM9IiIKU0VDVVJJVFlfRklMRVM9IiR7U0VDVVJJVFlfRklMRVN9IHJiYWNfYmluZGluZ3MueWFtbCIKU0VDVVJJVFlfRklMRVM9IiR7U0VDVVJJVFlfRklMRVN9IHJiYWNfcm9sZXMueWFtbCIKU0VDVVJJVFlfRklMRVM9IiR7U0VDVVJJVFlfRklMRVN9IHBzcF9wb2xpY2llcy55YW1sIgpTRUNVUklUWV9GSUxFUz0iJHtTRUNVUklUWV9GSUxFU30gcHNwX3JvbGVzLnlhbWwiClNFQ1VSSVRZX0ZJTEVTPSIke1NFQ1VSSVRZX0ZJTEVTfSBwc3BfYmluZGluZy55YW1sIgoKZm9yIG1hbmlmZXN0IGluICRTRUNVUklUWV9GSUxFUwpkbwogICAgd2hpbGUKICAgICAgICAvdXNyL2Jpbi9kb2NrZXIgcnVuIC1lIEtVQkVDT05GSUc9JHtLVUJFQ09ORklHfSAtLW5ldD1ob3N0IC0tcm0gLXYgL3Nydjovc3J2IC12IC9ldGMva3ViZXJuZXRlczovZXRjL2t1YmVybmV0ZXMgJEtVQkVDVEwgYXBwbHkgLWYgL3Nydi8kbWFuaWZlc3QKICAgICAgICBbICIkPyIgLW5lICIwIiBdCiAgICBkbwogICAgICAgIGVjaG8gImZhaWxlZCB0byBhcHBseSAvc3J2LyRtYW5pZmVzdCwgcmV0cnlpbmcgaW4gNSBzZWMiCiAgICAgICAgc2xlZXAgNXMKICAgIGRvbmUKZG9uZQoKIyBjaGVjayBmb3Igb3RoZXIgbWFzdGVyIGFuZCByZW1vdmUgaXQKVEhJU19NQUNISU5FPSQoY2F0IC9ldGMvaG9zdG5hbWUpCmZvciBtYXN0ZXIgaW4gJCgvdXNyL2Jpbi9kb2NrZXIgcnVuIC1lIEtVQkVDT05GSUc9JHtLVUJFQ09ORklHfSAtLW5ldD1ob3N0IC0tcm0gLXYgL2V0Yy9rdWJlcm5ldGVzOi9ldGMva3ViZXJuZXRlcyAkS1VCRUNUTCBnZXQgbm9kZXMgLS1uby1oZWFkZXJzPXRydWUgLS1zZWxlY3RvciByb2xlPW1hc3RlciB8IGF3ayAne3ByaW50ICQxfScpCmRvCiAgICBpZiBbICIkbWFzdGVyIiAhPSAiJFRISVNfTUFDSElORSIgXTsgdGhlbgogICAgICAgIC91c3IvYmluL2RvY2tlciBydW4gLWUgS1VCRUNPTkZJRz0ke0tVQkVDT05GSUd9IC0tbmV0PWhvc3QgLS1ybSAtdiAvZXRjL2t1YmVybmV0ZXM6L2V0Yy9rdWJlcm5ldGVzICRLVUJFQ1RMIGRlbGV0ZSBub2RlICRtYXN0ZXIKICAgIGZpCmRvbmUKCiMgd2FpdCBmb3IgZXRjZCBkbnMgKHJldHVybiBjb2RlIDM1IGlzIGJhZCBjZXJ0aWZpY2F0ZSB3aGljaCBpcyBnb29kIGVub3VnaCBoZXJlKQp3aGlsZQogICAgY3VybCAiaHR0cHM6Ly9FdGNkRG9tYWluOjEyMzQiIC1rIDI&#43;L2Rldi9udWxsID4vZGV2L251bGwKICAgIFJFVF9DT0RFPSQ/CiAgICBbICIkUkVUX0NPREUiIC1uZSAiMzUiIF0KZG8KICAgIGVjaG8gIldhaXRpbmcgZm9yIGV0Y2QgdG8gYmUgcmVhZHkgLiAuICIKICAgIHNsZWVwIDNzCmRvbmUKCiMgY3JlYXRlIGt1YmUtcHJveHkgY29uZmlnbWFwCndoaWxlCiAgICAvdXNyL2Jpbi9kb2NrZXIgcnVuIC1lIEtVQkVDT05GSUc9JHtLVUJFQ09ORklHfSAtLW5ldD1ob3N0IC0tcm0gLXYgL3Nydjovc3J2ICRLVUJFQ1RMIGNyZWF0ZSBjb25maWdtYXAga3ViZS1wcm94eSAtLWZyb20tZmlsZT1rdWJlLXByb3h5LnlhbWw9L3Nydi9rdWJlLXByb3h5LWNvbmZpZy55YW1sIC1vIHlhbWwgLS1kcnktcnVuIFwKICAgIHwgL3Vzci9iaW4vZG9ja2VyIHJ1biAgLWkgLS1sb2ctZHJpdmVyPW5vbmUgLWEgc3RkaW4gLWEgc3Rkb3V0IC1hIHN0ZGVyciAtZSBLVUJFQ09ORklHPSR7S1VCRUNPTkZJR30gLXYgL2V0Yy9rdWJlcm5ldGVzOi9ldGMva3ViZXJuZXRlcyAtLW5ldD1ob3N0IC0tcm0gJEtVQkVDVEwgYXBwbHkgLW4ga3ViZS1zeXN0ZW0gLWYgLQogICAgWyAiJD8iIC1uZSAiMCIgXQpkbwogICAgZWNobyAiZmFpbGVkIHRvIGNvbmZpZ3VyZSBrdWJlLXByb3h5IGZyb20gL3Nydi9rdWJlLXByb3h5LWNvbmZpZy55YW1sLCByZXRyeWluZyBpbiA1IHNlYyIKICAgIHNsZWVwIDVzCmRvbmUKCiMgaW5zdGFsbCBrdWJlLXByb3h5ClBST1hZX01BTklGRVNUUz0ia3ViZS1wcm94eS1zYS55YW1sIGt1YmUtcHJveHktZHMueWFtbCIKZm9yIG1hbmlmZXN0IGluICRQUk9YWV9NQU5JRkVTVFMKZG8KICAgIHdoaWxlCiAgICAgICAgL3Vzci9iaW4vZG9ja2VyIHJ1biAtZSBLVUJFQ09ORklHPSR7S1VCRUNPTkZJR30gLS1uZXQ9aG9zdCAtLXJtIC12IC9zcnY6L3NydiAtdiAvZXRjL2t1YmVybmV0ZXM6L2V0Yy9rdWJlcm5ldGVzICRLVUJFQ1RMIGFwcGx5IC1mIC9zcnYvJG1hbmlmZXN0CiAgICAgICAgWyAiJD8iIC1uZSAiMCIgXQogICAgZG8KICAgICAgICBlY2hvICJmYWlsZWQgdG8gYXBwbHkgL3Nydi8kbWFuaWZlc3QsIHJldHJ5aW5nIGluIDUgc2VjIgogICAgICAgIHNsZWVwIDVzCiAgICBkb25lCmRvbmUKZWNobyAia3ViZS1wcm94eSBzdWNjZXNzZnVsbHkgaW5zdGFsbGVkIgoKIyByZXN0YXJ0IGRzIHRvIGFwcGx5IGNvbmZpZyBmcm9tIGNvbmZpZ21hcAovdXNyL2Jpbi9kb2NrZXIgcnVuIC1lIEtVQkVDT05GSUc9JHtLVUJFQ09ORklHfSAtLW5ldD1ob3N0IC0tcm0gLXYgL2V0Yy9rdWJlcm5ldGVzOi9ldGMva3ViZXJuZXRlcyAkS1VCRUNUTCBkZWxldGUgcG9kcyAtbCBrOHMtYXBwPWt1YmUtcHJveHkgLW4ga3ViZS1zeXN0ZW0KCiMgYXBwbHkgY2FsaWNvCkNBTElDT19GSUxFPSJjYWxpY28tYWxsLnlhbWwiCgp3aGlsZQogICAgL3Vzci9iaW4vZG9ja2VyIHJ1biAtZSBLVUJFQ09ORklHPSR7S1VCRUNPTkZJR30gLS1uZXQ9aG9zdCAtLXJtIC12IC9zcnY6L3NydiAtdiAvZXRjL2t1YmVybmV0ZXM6L2V0Yy9rdWJlcm5ldGVzICRLVUJFQ1RMIGFwcGx5IC1mIC9zcnYvJENBTElDT19GSUxFCiAgICBbICIkPyIgLW5lICIwIiBdCmRvCiAgICBlY2hvICJmYWlsZWQgdG8gYXBwbHkgL3Nydi8kbWFuaWZlc3QsIHJldHJ5aW5nIGluIDUgc2VjIgogICAgc2xlZXAgNXMKZG9uZQoKIyB3YWl0IGZvciBoZWFsdGh5IGNhbGljbyAtIHdlIGNoZWNrIGZvciBwb2RzIC0gZGVzaXJlZCB2cyByZWFkeQp3aGlsZQogICAgIyByZXN1bHQgb2YgdGhpcyBpcyAnZXZhbCBbICIkREVTSVJFRF9QT0RfQ09VTlQiIC1lcSAiJFJFQURZX1BPRF9DT1VOVCIgXScKICAgIC91c3IvYmluL2RvY2tlciBydW4gLWUgS1VCRUNPTkZJRz0ke0tVQkVDT05GSUd9IC0tbmV0PWhvc3QgLS1ybSAtdiAvZXRjL2t1YmVybmV0ZXM6L2V0Yy9rdWJlcm5ldGVzICRLVUJFQ1RMIC1uIGt1YmUtc3lzdGVtICBnZXQgZHMgY2FsaWNvLW5vZGUgMj4vZGV2L251bGwgPi9kZXYvbnVsbAogICAgUkVUX0NPREVfMT0kPwogICAgZXZhbCAkKC91c3IvYmluL2RvY2tlciBydW4gLWUgS1VCRUNPTkZJRz0ke0tVQkVDT05GSUd9IC0tbmV0PWhvc3QgLS1ybSAtdiAvZXRjL2t1YmVybmV0ZXM6L2V0Yy9rdWJlcm5ldGVzICRLVUJFQ1RMIC1uIGt1YmUtc3lzdGVtIGdldCBkcyBjYWxpY28tbm9kZSB8IHRhaWwgLTEgfCBhd2sgJ3twcmludCAiWyBcIiIgJDIiXCIgLWVxIFwiIiQ0IlwiIF0gIn0nKQogICAgUkVUX0NPREVfMj0kPwogICAgWyAiJFJFVF9DT0RFXzEiIC1uZSAiMCIgXSB8fCBbICIkUkVUX0NPREVfMiIgLW5lICIwIiBdCmRvCiAgICBlY2hvICJXYWl0aW5nIGZvciBjYWxpY28gdG8gYmUgcmVhZHkgLiAuICIKICAgIHNsZWVwIDNzCmRvbmUKCiMgYXBwbHkgZGVmYXVsdCBzdG9yYWdlIGNsYXNzCmlmIFsgLWYgL3Nydi9kZWZhdWx0LXN0b3JhZ2UtY2xhc3MueWFtbCBdOyB0aGVuCiAgICB3aGlsZQogICAgICAgIC91c3IvYmluL2RvY2tlciBydW4gLWUgS1VCRUNPTkZJRz0ke0tVQkVDT05GSUd9IC0tbmV0PWhvc3QgLS1ybSAtdiAvc3J2Oi9zcnYgLXYgL2V0Yy9rdWJlcm5ldGVzOi9ldGMva3ViZXJuZXRlcyAkS1VCRUNUTCBhcHBseSAtZiAvc3J2L2RlZmF1bHQtc3RvcmFnZS1jbGFzcy55YW1sCiAgICAgICAgWyAiJD8iIC1uZSAiMCIgXQogICAgZG8KICAgICAgICBlY2hvICJmYWlsZWQgdG8gYXBwbHkgL3Nydi9kZWZhdWx0LXN0b3JhZ2UtY2xhc3MueWFtbCwgcmV0cnlpbmcgaW4gNSBzZWMiCiAgICAgICAgc2xlZXAgNXMKICAgIGRvbmUKZWxzZQogICAgZWNobyAibm8gZGVmYXVsdCBzdG9yYWdlIGNsYXNzIHRvIGFwcGx5IgpmaQoKIyBhcHBseSBwcmlvcml0eSBjbGFzc2VzOgpQUklPUklUWV9DTEFTU0VTX0ZJTEU9InByaW9yaXR5X2NsYXNzZXMueWFtbCIKCndoaWxlCiAgICAvdXNyL2Jpbi9kb2NrZXIgcnVuIC1lIEtVQkVDT05GSUc9JHtLVUJFQ09ORklHfSAtLW5ldD1ob3N0IC0tcm0gLXYgL3Nydjovc3J2IC12IC9ldGMva3ViZXJuZXRlczovZXRjL2t1YmVybmV0ZXMgJEtVQkVDVEwgYXBwbHkgLWYgL3Nydi8kUFJJT1JJVFlfQ0xBU1NFU19GSUxFCiAgICBbICIkPyIgLW5lICIwIiBdCmRvCiAgICBlY2hvICJmYWlsZWQgdG8gYXBwbHkgL3Nydi8kUFJJT1JJVFlfQ0xBU1NFU19GSUxFLCByZXRyeWluZyBpbiA1IHNlYyIKICAgIHNsZWVwIDVzCmRvbmUKCiMgYXBwbHkgbmV0d29yayBwb2xpY2llczoKTkVUV09SS19QT0xJQ0lFU19GSUxFPSJuZXR3b3JrX3BvbGljaWVzLnlhbWwiCk5BTUVTUEFDRVM9Imt1YmUtc3lzdGVtIGdpYW50c3dhcm0iCmZvciBuYW1lc3BhY2UgaW4gJHtOQU1FU1BBQ0VTfTsgZG8KICAgIHdoaWxlCiAgICAgIC91c3IvYmluL2RvY2tlciBydW4gLWUgS1VCRUNPTkZJRz0ke0tVQkVDT05GSUd9IC0tbmV0PWhvc3QgLS1ybSAtdiAvc3J2Oi9zcnYgLXYgL2V0Yy9rdWJlcm5ldGVzOi9ldGMva3ViZXJuZXRlcyAkS1VCRUNUTCBhcHBseSAtZiAvc3J2LyRORVRXT1JLX1BPTElDSUVTX0ZJTEUgLW4gJG5hbWVzcGFjZQogICAgICBbICIkPyIgLW5lICIwIiBdCiAgICBkbwogICAgICBlY2hvICJmYWlsZWQgdG8gYXBwbHkgL3Nydi8kTkVUV09SS19QT0xJQ0lFU19GSUxFLCByZXRyeWluZyBpbiA1IHNlYyIKICAgICAgc2xlZXAgNXMKICAgIGRvbmUKZG9uZQoKIyBhcHBseSBrOHMgYWRkb25zCk1BTklGRVNUUz0iIgpNQU5JRkVTVFM9IiR7TUFOSUZFU1RTfSBpbmdyZXNzLWNvbnRyb2xsZXItc3ZjLnlhbWwiCmZvciBtYW5pZmVzdCBpbiAkTUFOSUZFU1RTCmRvCiAgICB3aGlsZQogICAgICAgIC91c3IvYmluL2RvY2tlciBydW4gLWUgS1VCRUNPTkZJRz0ke0tVQkVDT05GSUd9IC0tbmV0PWhvc3QgLS1ybSAtdiAvc3J2Oi9zcnYgLXYgL2V0Yy9rdWJlcm5ldGVzOi9ldGMva3ViZXJuZXRlcyAkS1VCRUNUTCBhcHBseSAtZiAvc3J2LyRtYW5pZmVzdAogICAgICAgIFsgIiQ/IiAtbmUgIjAiIF0KICAgIGRvCiAgICAgICAgZWNobyAiZmFpbGVkIHRvIGFwcGx5IC9zcnYvJG1hbmlmZXN0LCByZXRyeWluZyBpbiA1IHNlYyIKICAgICAgICBzbGVlcCA1cwogICAgZG9uZQpkb25lCmVjaG8gIkFkZG9ucyBzdWNjZXNzZnVsbHkgaW5zdGFsbGVkIgo="
+
+    - path: /etc/kubernetes/kubeconfig/addons.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjogdjEKa2luZDogQ29uZmlnCnVzZXJzOgotIG5hbWU6IHByb3h5CiAgdXNlcjoKICAgIGNsaWVudC1jZXJ0aWZpY2F0ZTogL2V0Yy9rdWJlcm5ldGVzL3NzbC9hcGlzZXJ2ZXItY3J0LnBlbQogICAgY2xpZW50LWtleTogL2V0Yy9rdWJlcm5ldGVzL3NzbC9hcGlzZXJ2ZXIta2V5LnBlbQpjbHVzdGVyczoKLSBuYW1lOiBsb2NhbAogIGNsdXN0ZXI6CiAgICBjZXJ0aWZpY2F0ZS1hdXRob3JpdHk6IC9ldGMva3ViZXJuZXRlcy9zc2wvYXBpc2VydmVyLWNhLnBlbQogICAgc2VydmVyOiBodHRwczovL0FQSURvbWFpbgpjb250ZXh0czoKLSBjb250ZXh0OgogICAgY2x1c3RlcjogbG9jYWwKICAgIHVzZXI6IHByb3h5CiAgbmFtZTogc2VydmljZS1hY2NvdW50LWNvbnRleHQKY3VycmVudC1jb250ZXh0OiBzZXJ2aWNlLWFjY291bnQtY29udGV4dAo="
+
+    - path: /etc/kubernetes/config/proxy-kubeconfig.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjogdjEKa2luZDogQ29uZmlnCnVzZXJzOgotIG5hbWU6IHByb3h5CiAgdXNlcjoKICAgIGNsaWVudC1jZXJ0aWZpY2F0ZTogL2V0Yy9rdWJlcm5ldGVzL3NzbC9hcGlzZXJ2ZXItY3J0LnBlbQogICAgY2xpZW50LWtleTogL2V0Yy9rdWJlcm5ldGVzL3NzbC9hcGlzZXJ2ZXIta2V5LnBlbQpjbHVzdGVyczoKLSBuYW1lOiBsb2NhbAogIGNsdXN0ZXI6CiAgICBjZXJ0aWZpY2F0ZS1hdXRob3JpdHk6IC9ldGMva3ViZXJuZXRlcy9zc2wvYXBpc2VydmVyLWNhLnBlbQogICAgc2VydmVyOiBodHRwczovL0FQSURvbWFpbgpjb250ZXh0czoKLSBjb250ZXh0OgogICAgY2x1c3RlcjogbG9jYWwKICAgIHVzZXI6IHByb3h5CiAgbmFtZTogc2VydmljZS1hY2NvdW50LWNvbnRleHQKY3VycmVudC1jb250ZXh0OiBzZXJ2aWNlLWFjY291bnQtY29udGV4dAo="
+
+    - path: /etc/kubernetes/kubeconfig/kube-proxy.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjogdjEKa2luZDogQ29uZmlnCnVzZXJzOgotIG5hbWU6IHByb3h5CiAgdXNlcjoKICAgIGNsaWVudC1jZXJ0aWZpY2F0ZTogL2V0Yy9rdWJlcm5ldGVzL3NzbC9hcGlzZXJ2ZXItY3J0LnBlbQogICAgY2xpZW50LWtleTogL2V0Yy9rdWJlcm5ldGVzL3NzbC9hcGlzZXJ2ZXIta2V5LnBlbQpjbHVzdGVyczoKLSBuYW1lOiBsb2NhbAogIGNsdXN0ZXI6CiAgICBjZXJ0aWZpY2F0ZS1hdXRob3JpdHk6IC9ldGMva3ViZXJuZXRlcy9zc2wvYXBpc2VydmVyLWNhLnBlbQogICAgc2VydmVyOiBodHRwczovL0FQSURvbWFpbgpjb250ZXh0czoKLSBjb250ZXh0OgogICAgY2x1c3RlcjogbG9jYWwKICAgIHVzZXI6IHByb3h5CiAgbmFtZTogc2VydmljZS1hY2NvdW50LWNvbnRleHQKY3VycmVudC1jb250ZXh0OiBzZXJ2aWNlLWFjY291bnQtY29udGV4dAo="
+
+    - path: /etc/kubernetes/config/kubelet.yaml.tmpl
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,a2luZDogS3ViZWxldENvbmZpZ3VyYXRpb24KYXBpVmVyc2lvbjoga3ViZWxldC5jb25maWcuazhzLmlvL3YxYmV0YTEKYWRkcmVzczogJHtERUZBVUxUX0lQVjR9CnBvcnQ6IDEwMjUwCmhlYWx0aHpCaW5kQWRkcmVzczogJHtERUZBVUxUX0lQVjR9CmhlYWx0aHpQb3J0OiAxMDI0OApjbHVzdGVyRE5TOgogIC0gSzhzRE5TSVAKY2x1c3RlckRvbWFpbjogSzhzRG9tYWluCnN0YXRpY1BvZFBhdGg6IC9ldGMva3ViZXJuZXRlcy9tYW5pZmVzdHMKZXZpY3Rpb25Tb2Z0OgogIG1lbW9yeS5hdmFpbGFibGU6ICI1MDBNaSIKZXZpY3Rpb25IYXJkOgogIG1lbW9yeS5hdmFpbGFibGU6ICIyMDBNaSIKICBpbWFnZWZzLmF2YWlsYWJsZTogIjE1JSIKZXZpY3Rpb25Tb2Z0R3JhY2VQZXJpb2Q6CiAgbWVtb3J5LmF2YWlsYWJsZTogIjVzIgpldmljdGlvbk1heFBvZEdyYWNlUGVyaW9kOiA2MAprdWJlUmVzZXJ2ZWQ6CiAgY3B1OiAzNTBtCiAgbWVtb3J5OiAxMjgwTWkKICBlcGhlbWVyYWwtc3RvcmFnZTogMTAyNE1pCmt1YmVSZXNlcnZlZENncm91cDogL2t1YmVyZXNlcnZlZC5zbGljZQpydW50aW1lQ2dyb3VwczogL2t1YmVyZXNlcnZlZC5zbGljZQpzeXN0ZW1SZXNlcnZlZDoKICBjcHU6IDI1MG0KICBtZW1vcnk6IDM4NE1pCnN5c3RlbVJlc2VydmVkQ2dyb3VwOiAvc3lzdGVtLnNsaWNlCmF1dGhlbnRpY2F0aW9uOgogIGFub255bW91czoKICAgIGVuYWJsZWQ6IHRydWUgIyBEZWZhdWx0cyB0byBmYWxzZSBhcyBvZiAxLjEwCiAgd2ViaG9vazoKICAgIGVuYWJsZWQ6IGZhbHNlICMgRGVhZnVsdHMgdG8gdHJ1ZSBhcyBvZiAxLjEwCmF1dGhvcml6YXRpb246CiAgbW9kZTogQWx3YXlzQWxsb3cgIyBEZWFmdWx0cyB0byB3ZWJob29rIGFzIG9mIDEuMTAKZmVhdHVyZUdhdGVzOgogIFRUTEFmdGVyRmluaXNoZWQ6IHRydWUK"
+
+    - path: /etc/kubernetes/kubeconfig/kubelet.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjogdjEKa2luZDogQ29uZmlnCnVzZXJzOgotIG5hbWU6IGt1YmVsZXQKICB1c2VyOgogICAgY2xpZW50LWNlcnRpZmljYXRlOiAvZXRjL2t1YmVybmV0ZXMvc3NsL2FwaXNlcnZlci1jcnQucGVtCiAgICBjbGllbnQta2V5OiAvZXRjL2t1YmVybmV0ZXMvc3NsL2FwaXNlcnZlci1rZXkucGVtCmNsdXN0ZXJzOgotIG5hbWU6IGxvY2FsCiAgY2x1c3RlcjoKICAgIGNlcnRpZmljYXRlLWF1dGhvcml0eTogL2V0Yy9rdWJlcm5ldGVzL3NzbC9hcGlzZXJ2ZXItY2EucGVtCiAgICBzZXJ2ZXI6IGh0dHBzOi8vQVBJRG9tYWluCmNvbnRleHRzOgotIGNvbnRleHQ6CiAgICBjbHVzdGVyOiBsb2NhbAogICAgdXNlcjoga3ViZWxldAogIG5hbWU6IHNlcnZpY2UtYWNjb3VudC1jb250ZXh0CmN1cnJlbnQtY29udGV4dDogc2VydmljZS1hY2NvdW50LWNvbnRleHQK"
+
+    - path: /etc/kubernetes/kubeconfig/controller-manager.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjogdjEKa2luZDogQ29uZmlnCnVzZXJzOgotIG5hbWU6IGNvbnRyb2xsZXItbWFuYWdlcgogIHVzZXI6CiAgICBjbGllbnQtY2VydGlmaWNhdGU6IC9ldGMva3ViZXJuZXRlcy9zc2wvYXBpc2VydmVyLWNydC5wZW0KICAgIGNsaWVudC1rZXk6IC9ldGMva3ViZXJuZXRlcy9zc2wvYXBpc2VydmVyLWtleS5wZW0KY2x1c3RlcnM6Ci0gbmFtZTogbG9jYWwKICBjbHVzdGVyOgogICAgY2VydGlmaWNhdGUtYXV0aG9yaXR5OiAvZXRjL2t1YmVybmV0ZXMvc3NsL2FwaXNlcnZlci1jYS5wZW0KICAgIHNlcnZlcjogaHR0cHM6Ly9BUElEb21haW4KY29udGV4dHM6Ci0gY29udGV4dDoKICAgIGNsdXN0ZXI6IGxvY2FsCiAgICB1c2VyOiBjb250cm9sbGVyLW1hbmFnZXIKICBuYW1lOiBzZXJ2aWNlLWFjY291bnQtY29udGV4dApjdXJyZW50LWNvbnRleHQ6IHNlcnZpY2UtYWNjb3VudC1jb250ZXh0Cg=="
+
+    - path: /etc/kubernetes/config/scheduler.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,a2luZDogS3ViZVNjaGVkdWxlckNvbmZpZ3VyYXRpb24KYWxnb3JpdGhtU291cmNlOgogIHByb3ZpZGVyOiBEZWZhdWx0UHJvdmlkZXIKYXBpVmVyc2lvbjoga3ViZXNjaGVkdWxlci5jb25maWcuazhzLmlvL3YxYWxwaGExCmNsaWVudENvbm5lY3Rpb246CiAga3ViZWNvbmZpZzogL2V0Yy9rdWJlcm5ldGVzL2t1YmVjb25maWcvc2NoZWR1bGVyLnlhbWwKZmFpbHVyZURvbWFpbnM6IGt1YmVybmV0ZXMuaW8vaG9zdG5hbWUsZmFpbHVyZS1kb21haW4uYmV0YS5rdWJlcm5ldGVzLmlvL3pvbmUsZmFpbHVyZS1kb21haW4uYmV0YS5rdWJlcm5ldGVzLmlvL3JlZ2lvbgpoYXJkUG9kQWZmaW5pdHlTeW1tZXRyaWNXZWlnaHQ6IDEK"
+
+    - path: /etc/kubernetes/kubeconfig/scheduler.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjogdjEKa2luZDogQ29uZmlnCnVzZXJzOgotIG5hbWU6IHNjaGVkdWxlcgogIHVzZXI6CiAgICBjbGllbnQtY2VydGlmaWNhdGU6IC9ldGMva3ViZXJuZXRlcy9zc2wvYXBpc2VydmVyLWNydC5wZW0KICAgIGNsaWVudC1rZXk6IC9ldGMva3ViZXJuZXRlcy9zc2wvYXBpc2VydmVyLWtleS5wZW0KY2x1c3RlcnM6Ci0gbmFtZTogbG9jYWwKICBjbHVzdGVyOgogICAgY2VydGlmaWNhdGUtYXV0aG9yaXR5OiAvZXRjL2t1YmVybmV0ZXMvc3NsL2FwaXNlcnZlci1jYS5wZW0KICAgIHNlcnZlcjogaHR0cHM6Ly9BUElEb21haW4KY29udGV4dHM6Ci0gY29udGV4dDoKICAgIGNsdXN0ZXI6IGxvY2FsCiAgICB1c2VyOiBzY2hlZHVsZXIKICBuYW1lOiBzZXJ2aWNlLWFjY291bnQtY29udGV4dApjdXJyZW50LWNvbnRleHQ6IHNlcnZpY2UtYWNjb3VudC1jb250ZXh0Cg=="
+
+    - path: /etc/kubernetes/encryption/k8s-encryption-config.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,a2luZDogRW5jcnlwdGlvbkNvbmZpZ3VyYXRpb24KYXBpVmVyc2lvbjogYXBpc2VydmVyLmNvbmZpZy5rOHMuaW8vdjEKcmVzb3VyY2VzOgogIC0gcmVzb3VyY2VzOgogICAgLSBzZWNyZXRzCiAgICBwcm92aWRlcnM6CiAgICAtIGFlc2NiYzoKICAgICAgICBrZXlzOgogICAgICAgIC0gbmFtZToga2V5MQogICAgICAgICAgc2VjcmV0OiBzb21lIHNlY3JldAogICAgLSBpZGVudGl0eToge30K"
+    - path: /etc/kubernetes/policies/audit-policy.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjogYXVkaXQuazhzLmlvL3YxCmtpbmQ6IFBvbGljeQpydWxlczoKICAjIFRoZSBmb2xsb3dpbmcgcmVxdWVzdHMgd2VyZSBtYW51YWxseSBpZGVudGlmaWVkIGFzIGhpZ2gtdm9sdW1lIGFuZCBsb3ctcmlzaywKICAjIHNvIGRyb3AgdGhlbS4KICAtIGxldmVsOiBOb25lCiAgICB1c2VyczogWyJzeXN0ZW06a3ViZS1wcm94eSJdCiAgICB2ZXJiczogWyJ3YXRjaCJdCiAgICByZXNvdXJjZXM6CiAgICAgIC0gZ3JvdXA6ICIiICMgY29yZQogICAgICAgIHJlc291cmNlczogWyJlbmRwb2ludHMiLCAic2VydmljZXMiLCAic2VydmljZXMvc3RhdHVzIl0KICAtIGxldmVsOiBOb25lCiAgICAjIEluZ3Jlc3MgY29udHJvbGxlciByZWFkcyAnY29uZmlnbWFwcy9pbmdyZXNzLXVpZCcgdGhyb3VnaCB0aGUgdW5zZWN1cmVkIHBvcnQuCiAgICB1c2VyczogWyJzeXN0ZW06dW5zZWN1cmVkIl0KICAgIG5hbWVzcGFjZXM6IFsia3ViZS1zeXN0ZW0iXQogICAgdmVyYnM6IFsiZ2V0Il0KICAgIHJlc291cmNlczoKICAgICAgLSBncm91cDogIiIgIyBjb3JlCiAgICAgICAgcmVzb3VyY2VzOiBbImNvbmZpZ21hcHMiXQogIC0gbGV2ZWw6IE5vbmUKICAgIHVzZXJzOiBbImt1YmVsZXQiXSAjIGxlZ2FjeSBrdWJlbGV0IGlkZW50aXR5CiAgICB2ZXJiczogWyJnZXQiXQogICAgcmVzb3VyY2VzOgogICAgICAtIGdyb3VwOiAiIiAjIGNvcmUKICAgICAgICByZXNvdXJjZXM6IFsibm9kZXMiLCAibm9kZXMvc3RhdHVzIl0KICAtIGxldmVsOiBOb25lCiAgICB1c2VyR3JvdXBzOiBbInN5c3RlbTpub2RlcyJdCiAgICB2ZXJiczogWyJnZXQiXQogICAgcmVzb3VyY2VzOgogICAgICAtIGdyb3VwOiAiIiAjIGNvcmUKICAgICAgICByZXNvdXJjZXM6IFsibm9kZXMiLCAibm9kZXMvc3RhdHVzIl0KICAtIGxldmVsOiBOb25lCiAgICB1c2VyczoKICAgICAgLSBzeXN0ZW06a3ViZS1jb250cm9sbGVyLW1hbmFnZXIKICAgICAgLSBzeXN0ZW06a3ViZS1zY2hlZHVsZXIKICAgICAgLSBzeXN0ZW06c2VydmljZWFjY291bnQ6a3ViZS1zeXN0ZW06ZW5kcG9pbnQtY29udHJvbGxlcgogICAgdmVyYnM6IFsiZ2V0IiwgInVwZGF0ZSJdCiAgICBuYW1lc3BhY2VzOiBbImt1YmUtc3lzdGVtIl0KICAgIHJlc291cmNlczoKICAgICAgLSBncm91cDogIiIgIyBjb3JlCiAgICAgICAgcmVzb3VyY2VzOiBbImVuZHBvaW50cyJdCiAgLSBsZXZlbDogTm9uZQogICAgdXNlcnM6IFsic3lzdGVtOmFwaXNlcnZlciJdCiAgICB2ZXJiczogWyJnZXQiXQogICAgcmVzb3VyY2VzOgogICAgICAtIGdyb3VwOiAiIiAjIGNvcmUKICAgICAgICByZXNvdXJjZXM6IFsibmFtZXNwYWNlcyIsICJuYW1lc3BhY2VzL3N0YXR1cyIsICJuYW1lc3BhY2VzL2ZpbmFsaXplIl0KICAtIGxldmVsOiBOb25lCiAgICB1c2VyczogWyJzeXN0ZW06c2VydmljZWFjY291bnQ6a3ViZS1zeXN0ZW06Y2x1c3Rlci1hdXRvc2NhbGVyIl0KICAgIHZlcmJzOiBbImdldCIsICJ1cGRhdGUiXQogICAgbmFtZXNwYWNlczogWyJrdWJlLXN5c3RlbSJdCiAgICByZXNvdXJjZXM6CiAgICAgIC0gZ3JvdXA6ICIiICMgY29yZQogICAgICAgIHJlc291cmNlczogWyJjb25maWdtYXBzIiwgImVuZHBvaW50cyJdCiAgIyBEb24ndCBsb2cgSFBBIGZldGNoaW5nIG1ldHJpY3MuCiAgLSBsZXZlbDogTm9uZQogICAgdXNlcnM6CiAgICAgIC0gc3lzdGVtOmt1YmUtY29udHJvbGxlci1tYW5hZ2VyCiAgICB2ZXJiczogWyJnZXQiLCAibGlzdCJdCiAgICByZXNvdXJjZXM6CiAgICAgIC0gZ3JvdXA6ICJtZXRyaWNzLms4cy5pbyIKICAjIERvbid0IGxvZyB0aGVzZSByZWFkLW9ubHkgVVJMcy4KICAtIGxldmVsOiBOb25lCiAgICBub25SZXNvdXJjZVVSTHM6CiAgICAgIC0gL2hlYWx0aHoqCiAgICAgIC0gL3ZlcnNpb24KICAgICAgLSAvc3dhZ2dlcioKICAjIERvbid0IGxvZyBldmVudHMgcmVxdWVzdHMuCiAgLSBsZXZlbDogTm9uZQogICAgcmVzb3VyY2VzOgogICAgICAtIGdyb3VwOiAiIiAjIGNvcmUKICAgICAgICByZXNvdXJjZXM6IFsiZXZlbnRzIl0KICAjIG5vZGUgYW5kIHBvZCBzdGF0dXMgY2FsbHMgZnJvbSBub2RlcyBhcmUgaGlnaC12b2x1bWUgYW5kIGNhbiBiZSBsYXJnZSwgZG9uJ3QgbG9nIHJlc3BvbnNlcyBmb3IgZXhwZWN0ZWQgdXBkYXRlcyBmcm9tIG5vZGVzCiAgLSBsZXZlbDogUmVxdWVzdAogICAgdXNlcnM6CiAgICAgIFsKICAgICAgICAia3ViZWxldCIsCiAgICAgICAgInN5c3RlbTpub2RlLXByb2JsZW0tZGV0ZWN0b3IiLAogICAgICAgICJzeXN0ZW06c2VydmljZWFjY291bnQ6a3ViZS1zeXN0ZW06bm9kZS1wcm9ibGVtLWRldGVjdG9yIiwKICAgICAgXQogICAgdmVyYnM6IFsidXBkYXRlIiwgInBhdGNoIl0KICAgIHJlc291cmNlczoKICAgICAgLSBncm91cDogIiIgIyBjb3JlCiAgICAgICAgcmVzb3VyY2VzOiBbIm5vZGVzL3N0YXR1cyIsICJwb2RzL3N0YXR1cyJdCiAgICBvbWl0U3RhZ2VzOgogICAgICAtICJSZXF1ZXN0UmVjZWl2ZWQiCiAgLSBsZXZlbDogUmVxdWVzdAogICAgdXNlckdyb3VwczogWyJzeXN0ZW06bm9kZXMiXQogICAgdmVyYnM6IFsidXBkYXRlIiwgInBhdGNoIl0KICAgIHJlc291cmNlczoKICAgICAgLSBncm91cDogIiIgIyBjb3JlCiAgICAgICAgcmVzb3VyY2VzOiBbIm5vZGVzL3N0YXR1cyIsICJwb2RzL3N0YXR1cyJdCiAgICBvbWl0U3RhZ2VzOgogICAgICAtICJSZXF1ZXN0UmVjZWl2ZWQiCiAgIyBkZWxldGVjb2xsZWN0aW9uIGNhbGxzIGNhbiBiZSBsYXJnZSwgZG9uJ3QgbG9nIHJlc3BvbnNlcyBmb3IgZXhwZWN0ZWQgbmFtZXNwYWNlIGRlbGV0aW9ucwogIC0gbGV2ZWw6IFJlcXVlc3QKICAgIHVzZXJzOiBbInN5c3RlbTpzZXJ2aWNlYWNjb3VudDprdWJlLXN5c3RlbTpuYW1lc3BhY2UtY29udHJvbGxlciJdCiAgICB2ZXJiczogWyJkZWxldGVjb2xsZWN0aW9uIl0KICAgIG9taXRTdGFnZXM6CiAgICAgIC0gIlJlcXVlc3RSZWNlaXZlZCIKICAjIFNlY3JldHMsIENvbmZpZ01hcHMsIGFuZCBUb2tlblJldmlld3MgY2FuIGNvbnRhaW4gc2Vuc2l0aXZlICYgYmluYXJ5IGRhdGEsCiAgIyBzbyBvbmx5IGxvZyBhdCB0aGUgTWV0YWRhdGEgbGV2ZWwuCiAgLSBsZXZlbDogTWV0YWRhdGEKICAgIHJlc291cmNlczoKICAgICAgLSBncm91cDogIiIgIyBjb3JlCiAgICAgICAgcmVzb3VyY2VzOiBbInNlY3JldHMiLCAiY29uZmlnbWFwcyJdCiAgICAgIC0gZ3JvdXA6IGF1dGhlbnRpY2F0aW9uLms4cy5pbwogICAgICAgIHJlc291cmNlczogWyJ0b2tlbnJldmlld3MiXQogICAgb21pdFN0YWdlczoKICAgICAgLSAiUmVxdWVzdFJlY2VpdmVkIgogICMgR2V0IHJlcHNvbnNlcyBjYW4gYmUgbGFyZ2U7IHNraXAgdGhlbS4KICAtIGxldmVsOiBSZXF1ZXN0CiAgICB2ZXJiczogWyJnZXQiLCAibGlzdCIsICJ3YXRjaCJdCiAgICByZXNvdXJjZXM6CiAgICAgIC0gZ3JvdXA6ICIiICMgY29yZQogICAgICAtIGdyb3VwOiAiYWRtaXNzaW9ucmVnaXN0cmF0aW9uLms4cy5pbyIKICAgICAgLSBncm91cDogImFwaWV4dGVuc2lvbnMuazhzLmlvIgogICAgICAtIGdyb3VwOiAiYXBpcmVnaXN0cmF0aW9uLms4cy5pbyIKICAgICAgLSBncm91cDogImFwcHMiCiAgICAgIC0gZ3JvdXA6ICJhdXRoZW50aWNhdGlvbi5rOHMuaW8iCiAgICAgIC0gZ3JvdXA6ICJhdXRob3JpemF0aW9uLms4cy5pbyIKICAgICAgLSBncm91cDogImF1dG9zY2FsaW5nIgogICAgICAtIGdyb3VwOiAiYmF0Y2giCiAgICAgIC0gZ3JvdXA6ICJjZXJ0aWZpY2F0ZXMuazhzLmlvIgogICAgICAtIGdyb3VwOiAiZXh0ZW5zaW9ucyIKICAgICAgLSBncm91cDogIm1ldHJpY3MuazhzLmlvIgogICAgICAtIGdyb3VwOiAibmV0d29ya2luZy5rOHMuaW8iCiAgICAgIC0gZ3JvdXA6ICJwb2xpY3kiCiAgICAgIC0gZ3JvdXA6ICJyYmFjLmF1dGhvcml6YXRpb24uazhzLmlvIgogICAgICAtIGdyb3VwOiAic2NoZWR1bGluZy5rOHMuaW8iCiAgICAgIC0gZ3JvdXA6ICJzZXR0aW5ncy5rOHMuaW8iCiAgICAgIC0gZ3JvdXA6ICJzdG9yYWdlLms4cy5pbyIKICAgIG9taXRTdGFnZXM6CiAgICAgIC0gIlJlcXVlc3RSZWNlaXZlZCIKICAjIERlZmF1bHQgbGV2ZWwgZm9yIGtub3duIEFQSXMKICAtIGxldmVsOiBSZXF1ZXN0UmVzcG9uc2UKICAgIHJlc291cmNlczoKICAgICAgLSBncm91cDogIiIgIyBjb3JlCiAgICAgIC0gZ3JvdXA6ICJhZG1pc3Npb25yZWdpc3RyYXRpb24uazhzLmlvIgogICAgICAtIGdyb3VwOiAiYXBpZXh0ZW5zaW9ucy5rOHMuaW8iCiAgICAgIC0gZ3JvdXA6ICJhcGlyZWdpc3RyYXRpb24uazhzLmlvIgogICAgICAtIGdyb3VwOiAiYXBwcyIKICAgICAgLSBncm91cDogImF1dGhlbnRpY2F0aW9uLms4cy5pbyIKICAgICAgLSBncm91cDogImF1dGhvcml6YXRpb24uazhzLmlvIgogICAgICAtIGdyb3VwOiAiYXV0b3NjYWxpbmciCiAgICAgIC0gZ3JvdXA6ICJiYXRjaCIKICAgICAgLSBncm91cDogImNlcnRpZmljYXRlcy5rOHMuaW8iCiAgICAgIC0gZ3JvdXA6ICJleHRlbnNpb25zIgogICAgICAtIGdyb3VwOiAibWV0cmljcy5rOHMuaW8iCiAgICAgIC0gZ3JvdXA6ICJuZXR3b3JraW5nLms4cy5pbyIKICAgICAgLSBncm91cDogInBvbGljeSIKICAgICAgLSBncm91cDogInJiYWMuYXV0aG9yaXphdGlvbi5rOHMuaW8iCiAgICAgIC0gZ3JvdXA6ICJzY2hlZHVsaW5nLms4cy5pbyIKICAgICAgLSBncm91cDogInNldHRpbmdzLms4cy5pbyIKICAgICAgLSBncm91cDogInN0b3JhZ2UuazhzLmlvIgogICAgb21pdFN0YWdlczoKICAgICAgLSAiUmVxdWVzdFJlY2VpdmVkIgogICMgRGVmYXVsdCBsZXZlbCBmb3IgYWxsIG90aGVyIHJlcXVlc3RzLgogIC0gbGV2ZWw6IE1ldGFkYXRhCiAgICBvbWl0U3RhZ2VzOgogICAgICAtICJSZXF1ZXN0UmVjZWl2ZWQiCg=="
+
+    - path: /etc/kubernetes/manifests/k8s-api-healthz.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjogdjEKa2luZDogUG9kCm1ldGFkYXRhOgogIG5hbWU6IGs4cy1hcGktaGVhbHRoegogIG5hbWVzcGFjZToga3ViZS1zeXN0ZW0KICBhbm5vdGF0aW9uczoKICAgIHNjaGVkdWxlci5hbHBoYS5rdWJlcm5ldGVzLmlvL2NyaXRpY2FsLXBvZDogJycKc3BlYzoKICBob3N0TmV0d29yazogdHJ1ZQogIHByaW9yaXR5Q2xhc3NOYW1lOiBzeXN0ZW0tbm9kZS1jcml0aWNhbAogIGNvbnRhaW5lcnM6CiAgICAtIG5hbWU6IGs4cy1hcGktaGVhbHRoegogICAgICBlbnY6CiAgICAgIC0gbmFtZTogSE9TVF9JUAogICAgICAgIHZhbHVlRnJvbToKICAgICAgICAgIGZpZWxkUmVmOgogICAgICAgICAgICBmaWVsZFBhdGg6IHN0YXR1cy5wb2RJUAogICAgICBjb21tYW5kOgogICAgICAgIC0gL2s4cy1hcGktaGVhbHRoegogICAgICAgIC0gLS1hcGktZW5kcG9pbnQ9Imh0dHBzOi8vJChIT1NUX0lQKTo0NDMvaGVhbHRoeiIKICAgICAgaW1hZ2U6IHF1YXkuaW8vZ2lhbnRzd2FybS9rOHMtYXBpLWhlYWx0aHo6MWMwY2RmMWVkNWVlMThmZGY1OTA2M2VjZGQ4NGJmMzc4N2Y4MGZhYwogICAgICByZXNvdXJjZXM6CiAgICAgICAgcmVxdWVzdHM6CiAgICAgICAgICBjcHU6IDUwbQogICAgICAgICAgbWVtb3J5OiAyME1pCiAgICAgIHZvbHVtZU1vdW50czoKICAgICAgLSBtb3VudFBhdGg6IC9ldGMva3ViZXJuZXRlcy9zc2wvCiAgICAgICAgbmFtZTogc3NsLWNlcnRzLWt1YmVybmV0ZXMKICAgICAgICByZWFkT25seTogdHJ1ZQogIHZvbHVtZXM6CiAgLSBob3N0UGF0aDoKICAgICAgcGF0aDogL2V0Yy9rdWJlcm5ldGVzL3NzbAogICAgbmFtZTogc3NsLWNlcnRzLWt1YmVybmV0ZXMK"
+
+    - path: /etc/kubernetes/manifests/k8s-api-server.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjogdjEKa2luZDogUG9kCm1ldGFkYXRhOgogIG5hbWU6IGs4cy1hcGktc2VydmVyCiAgbmFtZXNwYWNlOiBrdWJlLXN5c3RlbQogIGxhYmVsczoKICAgIGs4cy1hcHA6IGFwaS1zZXJ2ZXIKICAgIHRpZXI6IGNvbnRyb2wtcGxhbmUKICBhbm5vdGF0aW9uczoKICAgIHNjaGVkdWxlci5hbHBoYS5rdWJlcm5ldGVzLmlvL2NyaXRpY2FsLXBvZDogJycKc3BlYzoKICBob3N0TmV0d29yazogdHJ1ZQogIHByaW9yaXR5Q2xhc3NOYW1lOiBzeXN0ZW0tbm9kZS1jcml0aWNhbAogIGNvbnRhaW5lcnM6CiAgLSBuYW1lOiBrOHMtYXBpLXNlcnZlcgogICAgaW1hZ2U6IFJlZ2lzdHJ5RG9tYWluL0s4c0ltYWdlCiAgICBlbnY6CiAgICAtIG5hbWU6IEhPU1RfSVAKICAgICAgdmFsdWVGcm9tOgogICAgICAgIGZpZWxkUmVmOgogICAgICAgICAgZmllbGRQYXRoOiBzdGF0dXMucG9kSVAKICAgIGNvbW1hbmQ6CiAgICAtIC9oeXBlcmt1YmUKICAgIC0ga3ViZS1hcGlzZXJ2ZXIKICAgIC0gLS1hbGxvdy1wcml2aWxlZ2VkPXRydWUKICAgIC0gLS1hbm9ueW1vdXMtYXV0aD1mYWxzZQogICAgLSAtLWluc2VjdXJlLXBvcnQ9MAogICAgLSAtLWt1YmVsZXQtaHR0cHM9dHJ1ZQogICAgLSAtLWt1YmVsZXQtcHJlZmVycmVkLWFkZHJlc3MtdHlwZXM9SW50ZXJuYWxJUAogICAgLSAtLXNlY3VyZS1wb3J0PTkwMDEKICAgIC0gLS1iaW5kLWFkZHJlc3M9MC4wLjAuMAogICAgLSAtLWV0Y2QtcHJlZml4PUV0Y2RQcmVmaXgKICAgIC0gLS1wcm9maWxpbmc9ZmFsc2UKICAgIC0gLS1zZXJ2aWNlLWFjY291bnQtbG9va3VwPXRydWUKICAgIC0gLS1hdXRob3JpemF0aW9uLW1vZGU9UkJBQwogICAgLSAtLWZlYXR1cmUtZ2F0ZXM9VFRMQWZ0ZXJGaW5pc2hlZD10cnVlCiAgICAtIC0tZW5hYmxlLWFkbWlzc2lvbi1wbHVnaW5zPU5hbWVzcGFjZUxpZmVjeWNsZSxMaW1pdFJhbmdlcixTZXJ2aWNlQWNjb3VudCxSZXNvdXJjZVF1b3RhLERlZmF1bHRTdG9yYWdlQ2xhc3MsUGVyc2lzdGVudFZvbHVtZUNsYWltUmVzaXplLFBvZFNlY3VyaXR5UG9saWN5LFByaW9yaXR5LERlZmF1bHRUb2xlcmF0aW9uU2Vjb25kcyxNdXRhdGluZ0FkbWlzc2lvbldlYmhvb2ssVmFsaWRhdGluZ0FkbWlzc2lvbldlYmhvb2sKICAgIC0gLS1jbG91ZC1wcm92aWRlcj0="
+
+    - path: /etc/kubernetes/manifests/k8s-controller-manager.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjogdjEKa2luZDogUG9kCm1ldGFkYXRhOgogIG5hbWU6IGs4cy1jb250cm9sbGVyLW1hbmFnZXIKICBuYW1lc3BhY2U6IGt1YmUtc3lzdGVtCiAgbGFiZWxzOgogICAgazhzLWFwcDogY29udHJvbGxlci1tYW5hZ2VyCiAgICB0aWVyOiBjb250cm9sLXBsYW5lCiAgYW5ub3RhdGlvbnM6CiAgICBzY2hlZHVsZXIuYWxwaGEua3ViZXJuZXRlcy5pby9jcml0aWNhbC1wb2Q6ICcnCnNwZWM6CiAgaG9zdE5ldHdvcms6IHRydWUKICBwcmlvcml0eUNsYXNzTmFtZTogc3lzdGVtLW5vZGUtY3JpdGljYWwKICBjb250YWluZXJzOgogIC0gbmFtZTogazhzLWNvbnRyb2xsZXItbWFuYWdlcgogICAgaW1hZ2U6IFJlZ2lzdHJ5RG9tYWluL0s4c0ltYWdlCiAgICBjb21tYW5kOgogICAgLSAvaHlwZXJrdWJlCiAgICAtIGt1YmUtY29udHJvbGxlci1tYW5hZ2VyCiAgICAtIC0tbG9ndG9zdGRlcnI9dHJ1ZQogICAgLSAtLXY9MgogICAgLSAtLWNsb3VkLXByb3ZpZGVyPWF3cwogICAgLSAtLXRlcm1pbmF0ZWQtcG9kLWdjLXRocmVzaG9sZD0xMAogICAgLSAtLXVzZS1zZXJ2aWNlLWFjY291bnQtY3JlZGVudGlhbHM9dHJ1ZQogICAgLSAtLWt1YmVjb25maWc9L2V0Yy9rdWJlcm5ldGVzL2t1YmVjb25maWcvY29udHJvbGxlci1tYW5hZ2VyLnlhbWwKICAgIC0gLS1mZWF0dXJlLWdhdGVzPVRUTEFmdGVyRmluaXNoZWQ9dHJ1ZQogICAgLSAtLXJvb3QtY2EtZmlsZT0vZXRjL2t1YmVybmV0ZXMvc3NsL2FwaXNlcnZlci1jYS5wZW0KICAgIC0gLS1zZXJ2aWNlLWFjY291bnQtcHJpdmF0ZS1rZXktZmlsZT0vZXRjL2t1YmVybmV0ZXMvc3NsL3NlcnZpY2UtYWNjb3VudC1rZXkucGVtCiAgICByZXNvdXJjZXM6CiAgICAgIHJlcXVlc3RzOgogICAgICAgIGNwdTogMjAwbQogICAgICAgIG1lbW9yeTogMjAwTWkKICAgIGxpdmVuZXNzUHJvYmU6CiAgICAgIGh0dHBHZXQ6CiAgICAgICAgaG9zdDogMTI3LjAuMC4xCiAgICAgICAgcGF0aDogL2hlYWx0aHoKICAgICAgICBwb3J0OiAxMDI1MQogICAgICBpbml0aWFsRGVsYXlTZWNvbmRzOiAxNQogICAgICB0aW1lb3V0U2Vjb25kczogMTUKICAgIHZvbHVtZU1vdW50czoKICAgIC0gbW91bnRQYXRoOiAvZXRjL2t1YmVybmV0ZXMvY29uZmlnLwogICAgICBuYW1lOiBrOHMtY29uZmlnCiAgICAgIHJlYWRPbmx5OiB0cnVlCiAgICAtIG1vdW50UGF0aDogL2V0Yy9rdWJlcm5ldGVzL2t1YmVjb25maWcvCiAgICAgIG5hbWU6IGs4cy1rdWJlY29uZmlnCiAgICAgIHJlYWRPbmx5OiB0cnVlCiAgICAtIG1vdW50UGF0aDogL2V0Yy9rdWJlcm5ldGVzL3NlY3JldHMvCiAgICAgIG5hbWU6IGs4cy1zZWNyZXRzCiAgICAgIHJlYWRPbmx5OiB0cnVlCiAgICAtIG1vdW50UGF0aDogL2V0Yy9rdWJlcm5ldGVzL3NzbC8KICAgICAgbmFtZTogc3NsLWNlcnRzLWt1YmVybmV0ZXMKICAgICAgcmVhZE9ubHk6IHRydWUKICB2b2x1bWVzOgogIC0gaG9zdFBhdGg6CiAgICAgIHBhdGg6IC9ldGMva3ViZXJuZXRlcy9jb25maWcKICAgIG5hbWU6IGs4cy1jb25maWcKICAtIGhvc3RQYXRoOgogICAgICBwYXRoOiAvZXRjL2t1YmVybmV0ZXMva3ViZWNvbmZpZwogICAgbmFtZTogazhzLWt1YmVjb25maWcKICAtIGhvc3RQYXRoOgogICAgICBwYXRoOiAvZXRjL2t1YmVybmV0ZXMvc2VjcmV0cwogICAgbmFtZTogazhzLXNlY3JldHMKICAtIGhvc3RQYXRoOgogICAgICBwYXRoOiAvZXRjL2t1YmVybmV0ZXMvc3NsCiAgICBuYW1lOiBzc2wtY2VydHMta3ViZXJuZXRlcwo="
+
+    - path: /etc/kubernetes/manifests/k8s-scheduler.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjogdjEKa2luZDogUG9kCm1ldGFkYXRhOgogIG5hbWU6IGs4cy1zY2hlZHVsZXIKICBuYW1lc3BhY2U6IGt1YmUtc3lzdGVtCiAgbGFiZWxzOgogICAgazhzLWFwcDogc2NoZWR1bGVyCiAgICB0aWVyOiBjb250cm9sLXBsYW5lCiAgYW5ub3RhdGlvbnM6CiAgICBzY2hlZHVsZXIuYWxwaGEua3ViZXJuZXRlcy5pby9jcml0aWNhbC1wb2Q6ICcnCnNwZWM6CiAgaG9zdE5ldHdvcms6IHRydWUKICBwcmlvcml0eUNsYXNzTmFtZTogc3lzdGVtLW5vZGUtY3JpdGljYWwKICBjb250YWluZXJzOgogIC0gbmFtZTogazhzLXNjaGVkdWxlcgogICAgaW1hZ2U6IFJlZ2lzdHJ5RG9tYWluL0s4c0ltYWdlCiAgICBjb21tYW5kOgogICAgLSAvaHlwZXJrdWJlCiAgICAtIGt1YmUtc2NoZWR1bGVyCiAgICAtIC0tZmVhdHVyZS1nYXRlcz1UVExBZnRlckZpbmlzaGVkPXRydWUKICAgIC0gLS1jb25maWc9L2V0Yy9rdWJlcm5ldGVzL2NvbmZpZy9zY2hlZHVsZXIueWFtbAogICAgLSAtLXY9MgogICAgcmVzb3VyY2VzOgogICAgICByZXF1ZXN0czoKICAgICAgICBjcHU6IDEwMG0KICAgICAgICBtZW1vcnk6IDEwME1pCiAgICBsaXZlbmVzc1Byb2JlOgogICAgICBodHRwR2V0OgogICAgICAgIGhvc3Q6IDEyNy4wLjAuMQogICAgICAgIHBhdGg6IC9oZWFsdGh6CiAgICAgICAgcG9ydDogMTAyNTEKICAgICAgaW5pdGlhbERlbGF5U2Vjb25kczogMTUKICAgICAgdGltZW91dFNlY29uZHM6IDE1CiAgICB2b2x1bWVNb3VudHM6CiAgICAtIG1vdW50UGF0aDogL2V0Yy9rdWJlcm5ldGVzL2NvbmZpZy8KICAgICAgbmFtZTogazhzLWNvbmZpZwogICAgICByZWFkT25seTogdHJ1ZQogICAgLSBtb3VudFBhdGg6IC9ldGMva3ViZXJuZXRlcy9rdWJlY29uZmlnLwogICAgICBuYW1lOiBrOHMta3ViZWNvbmZpZwogICAgICByZWFkT25seTogdHJ1ZQogICAgLSBtb3VudFBhdGg6IC9ldGMva3ViZXJuZXRlcy9zc2wvCiAgICAgIG5hbWU6IHNzbC1jZXJ0cy1rdWJlcm5ldGVzCiAgICAgIHJlYWRPbmx5OiB0cnVlCiAgdm9sdW1lczoKICAtIGhvc3RQYXRoOgogICAgICBwYXRoOiAvZXRjL2t1YmVybmV0ZXMvY29uZmlnCiAgICBuYW1lOiBrOHMtY29uZmlnCiAgLSBob3N0UGF0aDoKICAgICAgcGF0aDogL2V0Yy9rdWJlcm5ldGVzL2t1YmVjb25maWcKICAgIG5hbWU6IGs4cy1rdWJlY29uZmlnCiAgLSBob3N0UGF0aDoKICAgICAgcGF0aDogL2V0Yy9rdWJlcm5ldGVzL3NzbAogICAgbmFtZTogc3NsLWNlcnRzLWt1YmVybmV0ZXMK"
+
+    - path: /etc/ssh/sshd_config
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,IyBVc2UgbW9zdCBkZWZhdWx0cyBmb3Igc3NoZCBjb25maWd1cmF0aW9uLgpTdWJzeXN0ZW0gc2Z0cCBpbnRlcm5hbC1zZnRwCkNsaWVudEFsaXZlSW50ZXJ2YWwgMTgwClVzZUROUyBubwpVc2VQQU0geWVzClByaW50TGFzdExvZyBubyAjIGhhbmRsZWQgYnkgUEFNClByaW50TW90ZCBubyAjIGhhbmRsZWQgYnkgUEFNCiMgTm9uIGRlZmF1bHRzICgjMTAwKQpDbGllbnRBbGl2ZUNvdW50TWF4IDIKUGFzc3dvcmRBdXRoZW50aWNhdGlvbiBubwpUcnVzdGVkVXNlckNBS2V5cyAvZXRjL3NzaC90cnVzdGVkLXVzZXItY2Eta2V5cy5wZW0KTWF4QXV0aFRyaWVzIDUKTG9naW5HcmFjZVRpbWUgNjAKQWxsb3dUY3BGb3J3YXJkaW5nIG5vCkFsbG93QWdlbnRGb3J3YXJkaW5nIG5vCg=="
+
+    - path: /etc/sysctl.d/hardening.conf
+      filesystem: root
+      mode: 0600
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,ZnMuaW5vdGlmeS5tYXhfdXNlcl93YXRjaGVzID0gMTYzODQKIyBEZWZhdWx0IGlzIDEyOCwgZG91YmxpbmcgZm9yIG5vZGVzIHdpdGggbWFueSBwb2RzCiMgU2VlIGh0dHBzOi8vZ2l0aHViLmNvbS9naWFudHN3YXJtL2dpYW50c3dhcm0vaXNzdWVzLzc3MTEKZnMuaW5vdGlmeS5tYXhfdXNlcl9pbnN0YW5jZXMgPSA4MTkyCmtlcm5lbC5rcHRyX3Jlc3RyaWN0ID0gMgprZXJuZWwuc3lzcnEgPSAwCm5ldC5pcHY0LmNvbmYuYWxsLmxvZ19tYXJ0aWFucyA9IDEKbmV0LmlwdjQuY29uZi5hbGwuc2VuZF9yZWRpcmVjdHMgPSAwCm5ldC5pcHY0LmNvbmYuZGVmYXVsdC5hY2NlcHRfcmVkaXJlY3RzID0gMApuZXQuaXB2NC5jb25mLmRlZmF1bHQubG9nX21hcnRpYW5zID0gMQpuZXQuaXB2NC50Y3BfdGltZXN0YW1wcyA9IDAKbmV0LmlwdjYuY29uZi5hbGwuYWNjZXB0X3JlZGlyZWN0cyA9IDAKbmV0LmlwdjYuY29uZi5kZWZhdWx0LmFjY2VwdF9yZWRpcmVjdHMgPSAwCiMgSW5jcmVhc2VkIG1tYXBmcyBiZWNhdXNlIHNvbWUgYXBwbGljYXRpb25zLCBsaWtlIEVTLCBuZWVkIGhpZ2hlciBsaW1pdCB0byBzdG9yZSBkYXRhIHByb3Blcmx5CnZtLm1heF9tYXBfY291bnQgPSAyNjIxNDQKIyBJbmdyZXNzIGNvbnRyb2xsZXIgcGVyZm9ybWFuY2UgaW1wcm92ZW1lbnRzCiMgU2VlIGh0dHBzOi8vZ2l0aHViLmNvbS9rdWJlcm5ldGVzL2luZ3Jlc3MtbmdpbngvaXNzdWVzLzE5MzkKbmV0LmNvcmUuc29tYXhjb25uPTMyNzY4Cm5ldC5pcHY0LmlwX2xvY2FsX3BvcnRfcmFuZ2U9MTAyNCA2NTUzNQpuZXQuaXB2NC5jb25mLmFsbC5ycF9maWx0ZXIgPSAxCm5ldC5pcHY0LmNvbmYuYWxsLmFycF9pZ25vcmUgPSAxCm5ldC5pcHY0LmNvbmYuYWxsLmFycF9hbm5vdW5jZSA9IDIK"
+
+    - path: /etc/audit/rules.d/10-docker.rules
+      filesystem: root
+      mode: 0600
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,LXcgL3Vzci9iaW4vZG9ja2VyIC1rIGRvY2tlcgotdyAvdmFyL2xpYi9kb2NrZXIgLWsgZG9ja2VyCi13IC9ldGMvZG9ja2VyIC1rIGRvY2tlcgotdyAvZXRjL3N5c3RlbWQvc3lzdGVtL2RvY2tlci5zZXJ2aWNlLmQvMTAtZ2lhbnRzd2FybS1leHRyYS1hcmdzLmNvbmYgLWsgZG9ja2VyCi13IC9ldGMvc3lzdGVtZC9zeXN0ZW0vZG9ja2VyLnNlcnZpY2UuZC8wMS13YWl0LWRvY2tlci5jb25mIC1rIGRvY2tlcgotdyAvdXNyL2xpYi9zeXN0ZW1kL3N5c3RlbS9kb2NrZXIuc2VydmljZSAtayBkb2NrZXIKLXcgL3Vzci9saWIvc3lzdGVtZC9zeXN0ZW0vZG9ja2VyLnNvY2tldCAtayBkb2NrZXIK"
+
+    - path: /etc/modules-load.d/ip_vs.conf
+      filesystem: root
+      mode: 0600
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,aXBfdnMKaXBfdnNfcnIKaXBfdnNfd3JyCmlwX3ZzX3NoCm5mX2Nvbm50cmFja19pcHY0Cg=="
+
+    - path: /opt/install-debug-tools
+      filesystem: root
+      mode: 0544
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,IyEvYmluL2Jhc2gKc2V0IC1ldQoKbWtkaXIgLXAgL29wdC9iaW4KCiMgZG93bmxvYWQgY2FsaWNvY3RsCkNBTElDT0NUTF9WRVJTSU9OPXYzLjkuMQp3Z2V0IGh0dHBzOi8vZ2l0aHViLmNvbS9wcm9qZWN0Y2FsaWNvL2NhbGljb2N0bC9yZWxlYXNlcy9kb3dubG9hZC8ke0NBTElDT0NUTF9WRVJTSU9OfS9jYWxpY29jdGwtbGludXgtYW1kNjQKbXYgY2FsaWNvY3RsLWxpbnV4LWFtZDY0IC9vcHQvYmluL2NhbGljb2N0bApjaG1vZCAreCAvb3B0L2Jpbi9jYWxpY29jdGwKCiMgZG93bmxvYWQgY3JpY3RsCkNSSUNUTF9WRVJTSU9OPXYxLjE1LjAKd2dldCBodHRwczovL2dpdGh1Yi5jb20va3ViZXJuZXRlcy1zaWdzL2NyaS10b29scy9yZWxlYXNlcy9kb3dubG9hZC8ke0NSSUNUTF9WRVJTSU9OfS9jcmljdGwtJHtDUklDVExfVkVSU0lPTn0tbGludXgtYW1kNjQudGFyLmd6CnRhciB4dmYgY3JpY3RsLSR7Q1JJQ1RMX1ZFUlNJT059LWxpbnV4LWFtZDY0LnRhci5negptdiBjcmljdGwgL29wdC9iaW4vY3JpY3RsCmNobW9kICt4IC9vcHQvYmluL2NyaWN0bApybSBjcmljdGwtJHtDUklDVExfVkVSU0lPTn0tbGludXgtYW1kNjQudGFyLmd6Cg=="
+
+    - path: /etc/calico/calicoctl.cfg
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YXBpVmVyc2lvbjogcHJvamVjdGNhbGljby5vcmcvdjMKa2luZDogQ2FsaWNvQVBJQ29uZmlnCm1ldGFkYXRhOgpzcGVjOgogIGV0Y2RFbmRwb2ludHM6IGh0dHBzOi8vRXRjZERvbWFpbjoxMjM0CiAgZXRjZEtleUZpbGU6IC9ldGMva3ViZXJuZXRlcy9zc2wvZXRjZC9zZXJ2ZXIta2V5LnBlbQogIGV0Y2RDZXJ0RmlsZTogL2V0Yy9rdWJlcm5ldGVzL3NzbC9ldGNkL3NlcnZlci1jcnQucGVtCiAgZXRjZENBQ2VydEZpbGU6IC9ldGMva3ViZXJuZXRlcy9zc2wvZXRjZC9zZXJ2ZXItY2EucGVtCg=="
+
+    - path: /etc/crictl.yaml
+      filesystem: root
+      mode: 0644
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,cnVudGltZS1lbmRwb2ludDogdW5peDovLy92YXIvcnVuL2RvY2tlcnNoaW0vZG9ja2Vyc2hpbS5zb2NrCmltYWdlLWVuZHBvaW50OiB1bml4Oi8vL3Zhci9ydW4vZG9ja2Vyc2hpbS9kb2NrZXJzaGltLnNvY2sKdGltZW91dDogMTAKZGVidWc6IGZhbHNlCg=="
+
+    - path: /etc/profile.d/setup-etcdctl.sh
+      filesystem: root
+      mode: 0444
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,YWxpYXMgZXRjZGN0bD0iRVRDRENUTF9BUEk9MyBcCiAgICBFVENEQ1RMX0VORFBPSU5UUz1odHRwczovL0V0Y2REb21haW46MTIzNCBcCiAgICBFVENEQ1RMX0NBQ0VSVD0vZXRjL2t1YmVybmV0ZXMvc3NsL2V0Y2QvY2xpZW50LWNhLnBlbSBcCiAgICBFVENEQ1RMX0NFUlQ9L2V0Yy9rdWJlcm5ldGVzL3NzbC9ldGNkL2NsaWVudC1jcnQucGVtIFwKICAgIEVUQ0RDVExfS0VZPS9ldGMva3ViZXJuZXRlcy9zc2wvZXRjZC9jbGllbnQta2V5LnBlbSBcCiAgICBldGNkY3RsIgo="

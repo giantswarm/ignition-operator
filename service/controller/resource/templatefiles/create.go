@@ -19,7 +19,7 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 		return microerror.Mask(err)
 	}
 
-	cc.Status.Files, err = key.Render(cc.Spec, key.FilePath)
+	cc.Status.Files, err = key.Render(cc.Spec, key.FilePath, true)
 	if err != nil {
 		return microerror.Mask(err)
 	}

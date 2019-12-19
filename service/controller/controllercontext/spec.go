@@ -1,6 +1,7 @@
 package controllercontext
 
 type ContextSpec struct {
+	APIServerEncryptionKey  string
 	BaseDomain              string
 	Calico                  ContextSpecCalico
 	DisableEncryptionAtREST bool

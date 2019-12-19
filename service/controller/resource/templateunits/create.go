@@ -15,7 +15,7 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 		return microerror.Mask(err)
 	}
 
-	cc.Status.Units, err = key.Render(cc.Spec, key.UnitPath)
+	cc.Status.Units, err = key.Render(cc.Spec, key.UnitPath, false)
 	if err != nil {
 		return microerror.Mask(err)
 	}

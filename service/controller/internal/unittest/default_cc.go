@@ -6,7 +6,8 @@ func DefaultCC() controllercontext.Context {
 	var ccSpec controllercontext.ContextSpec
 	{
 		ccSpec = controllercontext.ContextSpec{
-			BaseDomain: "ClusterBaseDomain",
+			APIServerEncryptionKey: "some secret",
+			BaseDomain:             "ClusterBaseDomain",
 			Calico: controllercontext.ContextSpecCalico{
 				CIDR:    "CalicoCIDR",
 				Disable: false,

@@ -12,7 +12,7 @@ LimitNOFILE=40000
 CPUAccounting=true
 MemoryAccounting=true
 Slice=kubereserved.slice
-Environment=IMAGE={{ .Registry.Domain }}/{{ .Etcd.Image }}
+Environment=IMAGE={{ .Spec.Registry.Domain }}/{{ .Spec.Etcd.Image }}
 Environment=NAME=%p.service
 EnvironmentFile=/etc/network-environment
 ExecStartPre=-/usr/bin/docker stop  $NAME
