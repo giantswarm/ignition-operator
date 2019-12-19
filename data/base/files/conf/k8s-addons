@@ -2,7 +2,7 @@
 
 export KUBECONFIG=/etc/kubernetes/kubeconfig/addons.yaml
 # kubectl 1.12.2
-KUBECTL={{ .Registry.Domain }}/giantswarm/docker-kubectl:f5cae44c480bd797dc770dd5f62d40b74063c0d7
+KUBECTL={{ .Spec.Registry.Domain }}/giantswarm/docker-kubectl:f5cae44c480bd797dc770dd5f62d40b74063c0d7
 
 /usr/bin/docker pull $KUBECTL
 
@@ -54,7 +54,7 @@ done
 
 # wait for etcd dns (return code 35 is bad certificate which is good enough here)
 while
-    curl "https://{{ .Etcd.Domain }}:{{ .Etcd.Port }}" -k 2>/dev/null >/dev/null
+    curl "https://{{ .Spec.Etcd.Domain }}:{{ .Spec.Etcd.Port }}" -k 2>/dev/null >/dev/null
     RET_CODE=$?
     [ "$RET_CODE" -ne "35" ]
 do
@@ -89,7 +89,7 @@ echo "kube-proxy successfully installed"
 # restart ds to apply config from configmap
 /usr/bin/docker run -e KUBECONFIG=${KUBECONFIG} --net=host --rm -v /etc/kubernetes:/etc/kubernetes $KUBECTL delete pods -l k8s-app=kube-proxy -n kube-system
 
-{{ if not .Calico.Disable -}}
+{{ if not .Spec.Calico.Disable -}}
 
 # apply calico
 CALICO_FILE="calico-all.yaml"
@@ -156,7 +156,7 @@ done
 
 # apply k8s addons
 MANIFESTS=""
-{{ if not .Ingress.Disable -}}
+{{ if not .Spec.Ingress.Disable -}}
 MANIFESTS="${MANIFESTS} ingress-controller-svc.yaml"
 {{ end -}}
 

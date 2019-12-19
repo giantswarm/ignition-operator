@@ -13,13 +13,13 @@ spec:
   priorityClassName: system-node-critical
   containers:
   - name: k8s-controller-manager
-    image: {{ .Registry.Domain }}/{{ .Kubernetes.Image }}
+    image: {{ .Spec.Registry.Domain }}/{{ .Spec.Kubernetes.Image }}
     command:
     - /hyperkube
     - kube-controller-manager
     - --logtostderr=true
     - --v=2
-    - --cloud-provider={{ .Provider }}
+    - --cloud-provider={{ .Spec.Provider }}
     - --terminated-pod-gc-threshold=10
     - --use-service-account-credentials=true
     - --kubeconfig=/etc/kubernetes/kubeconfig/controller-manager.yaml

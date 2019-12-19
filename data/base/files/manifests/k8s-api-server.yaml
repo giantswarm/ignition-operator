@@ -13,7 +13,7 @@ spec:
   priorityClassName: system-node-critical
   containers:
   - name: k8s-api-server
-    image: {{ .Registry.Domain }}/{{ .Kubernetes.Image }}
+    image: {{ .Spec.Registry.Domain }}/{{ .Spec.Kubernetes.Image }}
     env:
     - name: HOST_IP
       valueFrom:
@@ -27,16 +27,16 @@ spec:
     - --insecure-port=0
     - --kubelet-https=true
     - --kubelet-preferred-address-types=InternalIP
-    - --secure-port={{ .Kubernetes.API.SecurePort }}
+    - --secure-port={{ .Spec.Kubernetes.API.SecurePort }}
     - --bind-address=0.0.0.0
-    - --etcd-prefix={{ .Etcd.Prefix }}
+    - --etcd-prefix={{ .Spec.Etcd.Prefix }}
     - --profiling=false
     - --service-account-lookup=true
     - --authorization-mode=RBAC
     - --feature-gates=TTLAfterFinished=true
     - --enable-admission-plugins=NamespaceLifecycle,LimitRanger,ServiceAccount,ResourceQuota,DefaultStorageClass,PersistentVolumeClaimResize,PodSecurityPolicy,Priority,DefaultTolerationSeconds,MutatingAdmissionWebhook,ValidatingAdmissionWebhook
-    - --cloud-provider={{ .Kubernetes.CloudProvider }}
-    - --service-cluster-ip-range={{ .Kubernetes.IPRange }}
+    - --cloud-provider={{ .Spec.Kubernetes.CloudProvider }}
+    - --service-cluster-ip-range={{ .Spec.Kubernetes.IPRange }}
     - --etcd-servers=https://127.0.0.1:2379
     - --etcd-cafile=/etc/kubernetes/ssl/etcd/server-ca.pem
     - --etcd-certfile=/etc/kubernetes/ssl/etcd/server-crt.pem
@@ -55,7 +55,7 @@ spec:
     - --audit-policy-file=/etc/kubernetes/policies/audit-policy.yaml
     - --encryption-provider-config=/etc/kubernetes/encryption/k8s-encryption-config.yaml
     - --requestheader-client-ca-file=/etc/kubernetes/ssl/apiserver-ca.pem
-    - --requestheader-allowed-names=aggregator,{{ .Kubernetes.API.Domain }},{{ .Kubernetes.Kubelet.Domain }}
+    - --requestheader-allowed-names=aggregator,{{ .Spec.Kubernetes.API.Domain }},{{ .Spec.Kubernetes.Kubelet.Domain }}
     - --requestheader-extra-headers-prefix=X-Remote-Extra-
     - --requestheader-group-headers=X-Remote-Group
     - --requestheader-username-headers=X-Remote-User
@@ -67,12 +67,12 @@ spec:
         memory: 300Mi
     livenessProbe:
       tcpSocket:
-        port: {{ .Kubernetes.API.SecurePort }}
+        port: {{ .Spec.Kubernetes.API.SecurePort }}
       initialDelaySeconds: 15
       timeoutSeconds: 15
     ports:
-    - containerPort: {{ .Kubernetes.API.SecurePort }}
-      hostPort: {{ .Kubernetes.API.SecurePort }}
+    - containerPort: {{ .Spec.Kubernetes.API.SecurePort }}
+      hostPort: {{ .Spec.Kubernetes.API.SecurePort }}
       name: https
     volumeMounts:
     - mountPath: /var/log/apiserver/

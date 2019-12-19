@@ -9,7 +9,7 @@ clusters:
 - name: local
   cluster:
     certificate-authority: /etc/kubernetes/ssl/worker-ca.pem
-    server: https://{{ .Kubernetes.API.Domain }}
+    server: https://{{ .Spec.Kubernetes.API.Domain }}
 contexts:
 - context:
     cluster: local

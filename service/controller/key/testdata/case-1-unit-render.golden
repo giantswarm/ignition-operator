@@ -1,3 +1,8 @@
+10-change-cgroup.conf: |
+  [Service]
+  CPUAccounting=true
+  MemoryAccounting=true
+  Slice=kubereserved.slice
 10-giantswarm-extra-args.conf: |
   [Service]
   CPUAccounting=true
@@ -14,6 +19,15 @@ containerd.service: |
   CPUAccounting=true
   MemoryAccounting=true
   Slice=kubereserved.slice
+debug-tools.service: |
+  [Unit]
+  Description=Install calicoctl and crictl tools
+  After=network.target
+  [Service]
+  Type=oneshot
+  ExecStart=/opt/install-debug-tools
+  [Install]
+  WantedBy=multi-user.target
 etcd3-defragmentation.service: |
   [Unit]
   Description=etcd defragmentation job

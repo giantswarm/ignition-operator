@@ -16,19 +16,19 @@ Environment="ETCD_CERT_FILE=/etc/kubernetes/ssl/etcd/client-crt.pem"
 Environment="ETCD_KEY_FILE=/etc/kubernetes/ssl/etcd/client-key.pem"
 EnvironmentFile=/etc/network-environment
 ExecStart=/opt/bin/hyperkube kubelet \
-  {{ range .Kubernetes.Kubelet.CommandArgs -}}
+  {{ range .Spec.Kubernetes.Kubelet.CommandArgs -}}
   {{ . }} \
   {{ end -}}
   --node-ip=${DEFAULT_IPV4} \
   --config=/etc/kubernetes/config/kubelet.yaml \
   --enable-server \
   --logtostderr=true \
-  --cloud-provider={{ .Provider }} \
-  --image-pull-progress-deadline={{ .Registry.PullProgressDeadline }} \
+  --cloud-provider={{ .Spec.Provider }} \
+  --image-pull-progress-deadline={{ .Spec.Registry.PullProgressDeadline }} \
   --network-plugin=cni \
   --register-node=true \
   --kubeconfig=/etc/kubernetes/kubeconfig/kubelet.yaml \
-  --node-labels="node.kubernetes.io/worker,node-role.kubernetes.io/worker,kubernetes.io/role=worker,role=worker,ip=${DEFAULT_IPV4},{{ .Kubernetes.Kubelet.Labels }}" \
+  --node-labels="node.kubernetes.io/worker,node-role.kubernetes.io/worker,kubernetes.io/role=worker,role=worker,ip=${DEFAULT_IPV4},{{ .Spec.Kubernetes.Kubelet.Labels }}" \
   --v=2
 [Install]
 WantedBy=multi-user.target

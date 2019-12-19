@@ -1,12 +1,14 @@
 package controllercontext
 
 type ContextSpec struct {
-	BaseDomain string
-	Calico     ContextSpecCalico
-	Docker     ContextSpecDocker
-	Etcd       ContextSpecEtcd
-	Ingress    ContextSpecIngress
-	Kubernetes ContextSpecKubernetes
+	APIServerEncryptionKey  string
+	BaseDomain              string
+	Calico                  ContextSpecCalico
+	DisableEncryptionAtREST bool
+	Docker                  ContextSpecDocker
+	Etcd                    ContextSpecEtcd
+	Ingress                 ContextSpecIngress
+	Kubernetes              ContextSpecKubernetes
 	// Defines the provider which should be rendered.
 	Provider string
 	Registry ContextSpecRegistry

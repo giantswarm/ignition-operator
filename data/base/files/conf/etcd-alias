@@ -1,5 +1,5 @@
 alias etcdctl="ETCDCTL_API=3 \
-    ETCDCTL_ENDPOINTS=https://{{ .Etcd.Domain }}:{{ .Etcd.Port }} \
+    ETCDCTL_ENDPOINTS=https://{{ .Spec.Etcd.Domain }}:{{ .Spec.Etcd.Port }} \
     ETCDCTL_CACERT=/etc/kubernetes/ssl/etcd/client-ca.pem \
     ETCDCTL_CERT=/etc/kubernetes/ssl/etcd/client-crt.pem \
     ETCDCTL_KEY=/etc/kubernetes/ssl/etcd/client-key.pem \

@@ -2,17 +2,19 @@ package unittest
 
 import "github.com/giantswarm/ignition-operator/service/controller/controllercontext"
 
-func DefaultCCSpec() controllercontext.ContextSpec {
+func DefaultCC() controllercontext.Context {
 	var ccSpec controllercontext.ContextSpec
 	{
 		ccSpec = controllercontext.ContextSpec{
-			BaseDomain: "ClusterBaseDomain",
+			APIServerEncryptionKey: "some secret",
+			BaseDomain:             "ClusterBaseDomain",
 			Calico: controllercontext.ContextSpecCalico{
 				CIDR:    "CalicoCIDR",
 				Disable: false,
 				MTU:     "CalicoMTU",
 				Subnet:  "CalicoSubnet",
 			},
+			DisableEncryptionAtREST: false,
 			Docker: controllercontext.ContextSpecDocker{
 				Daemon: controllercontext.ContextSpecDockerDaemon{
 					CIDR: "DockerDaemonCIDR",
@@ -61,5 +63,9 @@ func DefaultCCSpec() controllercontext.ContextSpec {
 		}
 	}
 
-	return ccSpec
+	cc := controllercontext.Context{
+		Spec: ccSpec,
+	}
+
+	return cc
 }
