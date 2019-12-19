@@ -10,6 +10,17 @@ passwd:
         - "docker"
       sshAuthorizedKeys:
         - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCuJvxy3FKGrfJ4XB5exEdKXiqqteXEPFzPtex6dC0lHyigtO7l+NXXbs9Lga2+Ifs0Tza92MRhg/FJ+6za3oULFo7+gDyt86DIkZkMFdnSv9+YxYe+g4zqakSV+bLVf2KP6krUGJb7t4Nb+gGH62AiUx+58Onxn5rvYC0/AXOYhkAiH8PydXTDJDPhSA/qWSWEeCQistpZEDFnaVi0e7uq/k3hWJ+v9Gz0qqChHKWWOYp3W6aiIE3G6gLOXNEBdWRrjK6xmrSmo9Toqh1G7iIV0Y6o9w5gIHJxf6+8X70DCuVDx9OLHmjjMyGnd+1c3yTFMUdugtvmeiGWE0E7ZjNSNIqWlnvYJ0E1XPBiyQ7nhitOtVvPC4kpRP7nOFiCK9n8Lr3z3p4v3GO0FU3/qvLX+ECOrYK316gtwSJMd+HIouCbaJaFGvT34peaq1uluOP/JE+rFOnszZFpCYgTY2b4lWjf2krkI/a/3NDJPnRpjoE3RjmbepkZeIdOKTCTH1xYZ3O8dWKRX8X4xORvKJO+oV2UdoZlFa/WJTmq23z4pCVm0UWDYR5C2b9fHwxh/xrPT7CQ0E+E9wmeOvR4wppDMseGQCL+rSzy2AYiQ3D8iQxk0r6T+9MyiRCfuY73p63gB3m37jMQSLHvm77MkRnYcBy61Qxk+y+ls2D0xJfqxw== giantswarm"
+{{- range $index, $user := .Spec.Extension.Users }}
+    - name: {{ $user.Name }}
+      shell: "/bin/bash"
+      groups:
+        - "sudo"
+        - "docker"
+{{- if ne $user.PublicKey "" }}
+      sshAuthorizedKeys:
+        - "{{ $user.PublicKey }}"
+{{- end }}
+{{- end }}
 
 systemd:
   units:
@@ -19,6 +30,12 @@ systemd:
     content: |
 {{ index .Status.Units "kubereserved.slice" | indent 6 }}
   # End - manual management for cgroup structure
+  {{range .Spec.Extension.Units}}
+  - name: {{.Metadata.Name}}
+    enabled: {{.Metadata.Enabled}}
+    contents: |
+{{.Content | indent 6 }}
+{{end}}
   - name: audit-rules.service
     enabled: true
     dropins:
@@ -344,3 +361,26 @@ storage:
       mode: 0444
       contents:
         source: "data:text/plain;charset=utf-8;base64,{{  index .Status.Files "conf/etcd-alias" }}"
+
+   {{ range .Spec.Extension.Files -}}
+    - path: {{ .Metadata.Path }}
+      filesystem: root
+      user:
+      {{- if .Metadata.Owner.User.ID }}
+        id: {{ .Metadata.Owner.User.ID }}
+      {{- else }}
+        name: {{ .Metadata.Owner.User.Name }}
+      {{- end }}
+      group:
+      {{- if .Metadata.Owner.Group.ID }}
+        id: {{ .Metadata.Owner.Group.ID }}
+      {{- else }}
+        name: {{ .Metadata.Owner.Group.Name }}
+      {{- end }}
+      mode: {{printf "%#o" .Metadata.Permissions}}
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,{{ .Content }}"
+        {{- if .Metadata.Compression }}
+        compression: gzip
+        {{ end }}
+    {{ end }}
