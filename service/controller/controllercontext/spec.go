@@ -1,61 +1,77 @@
 package controllercontext
 
 type ContextSpec struct {
-	BaseDomain string                `json:"basedomain" yaml:"basedomain"`
-	Calico     ContextSpecCalico     `json:"calico" yaml:"calico"`
-	Etcd       ContextSpecEtcd       `json:"etcd" yaml:"etcd"`
-	Ingress    ContextSpecIngress    `json:"ingress" yaml:"ingress"`
-	Kubernetes ContextSpecKubernetes `json:"kubernetes" yaml:"kubernetes"`
+	BaseDomain string
+	Calico     ContextSpecCalico
+	Docker     ContextSpecDocker
+	Etcd       ContextSpecEtcd
+	Ingress    ContextSpecIngress
+	Kubernetes ContextSpecKubernetes
 	// Defines the provider which should be rendered.
-	Provider string              `json:"provider" yaml:"provider"`
-	Registry ContextSpecRegistry `json:"registry" yaml:"registry"`
-	SSO      ContextSpecSSO      `json:"sso" yaml:"sso"`
+	Provider string
+	Registry ContextSpecRegistry
+	SSO      ContextSpecSSO
 }
 
 type ContextSpecCalico struct {
-	CIDR    string `json:"cidr" yaml:"cidr"`
-	Disable bool   `json:"disable" yaml:"disable"`
-	MTU     string `json:"mtu" yaml:"mtu"`
-	Subnet  string `json:"subnet" yaml:"subnet"`
+	CIDR    string
+	Disable bool
+	MTU     string
+	Subnet  string
+}
+
+type ContextSpecDocker struct {
+	Daemon       ContextSpecDockerDaemon
+	NetworkSetup ContextSpecDockerNetworkSetup
+}
+
+type ContextSpecDockerDaemon struct {
+	CIDR string
+}
+
+type ContextSpecDockerNetworkSetup struct {
+	Image string
 }
 
 type ContextSpecEtcd struct {
-	Domain string `json:"domain" yaml:"domain"`
-	Image  string `json:"image" yaml:"image"`
-	Port   int    `json:"port" yaml:"port"`
-	Prefix string `json:"prefix" yaml:"prefix"`
+	Domain string
+	Image  string
+	Port   int
+	Prefix string
 }
 
 type ContextSpecIngress struct {
-	Disable bool `json:"disable" yaml:"disable"`
+	Disable bool
 }
 
 type ContextSpecKubernetes struct {
-	API     ContextSpecKubernetesAPI     `json:"api" yaml:"api"`
-	DNS     ContextSpecKubernetesDNS     `json:"dns" yaml:"dns"`
-	Domain  string                       `json:"domain" yaml:"domain"`
-	Kubelet ContextSpecKubernetesKubelet `json:"kubelet" yaml:"kubelet"`
-	Image   string                       `json:"image" yaml:"image"`
-	IPRange string                       `json:"iprange" yaml:"iprange"`
+	API     ContextSpecKubernetesAPI
+	DNS     ContextSpecKubernetesDNS
+	Domain  string
+	Kubelet ContextSpecKubernetesKubelet
+	Image   string
+	IPRange string
 }
 
 type ContextSpecKubernetesAPI struct {
-	Domain     string `json:"domain" yaml:"domain"`
-	SecurePort int    `json:"secureport" yaml:"secureport"`
+	Domain     string
+	SecurePort int
 }
 
 type ContextSpecKubernetesDNS struct {
-	IP string `json:"ip" yaml:"ip"`
+	IP string
 }
 
 type ContextSpecKubernetesKubelet struct {
-	Domain string `json:"domain" yaml:"domain"`
-	Labels string `json:"labels" yaml:"labels"`
+	CommandArgs []string
+	Domain      string
+	Labels      string
 }
 
 type ContextSpecRegistry struct {
-	Domain string `json:"domain" yaml:"domain"`
+	Domain               string
+	PullProgressDeadline string
 }
 type ContextSpecSSO struct {
-	PublicKey string `json:"publicKey" yaml:"publicKey"`
+	PublicKey string
 }

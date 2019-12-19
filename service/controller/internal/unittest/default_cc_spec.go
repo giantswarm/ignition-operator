@@ -13,6 +13,14 @@ func DefaultCCSpec() controllercontext.ContextSpec {
 				MTU:     "CalicoMTU",
 				Subnet:  "CalicoSubnet",
 			},
+			Docker: controllercontext.ContextSpecDocker{
+				Daemon: controllercontext.ContextSpecDockerDaemon{
+					CIDR: "DockerDaemonCIDR",
+				},
+				NetworkSetup: controllercontext.ContextSpecDockerNetworkSetup{
+					Image: "DockerNetworkSetupImage",
+				},
+			},
 			Etcd: controllercontext.ContextSpecEtcd{
 				Domain: "EtcdDomain",
 				Image:  "EtcdImage",
@@ -32,6 +40,10 @@ func DefaultCCSpec() controllercontext.ContextSpec {
 				},
 				Domain: "K8sDomain",
 				Kubelet: controllercontext.ContextSpecKubernetesKubelet{
+					CommandArgs: []string{
+						"kubeletArg1",
+						"kubeletArg2",
+					},
 					Domain: "K8sKubeletDomain",
 					Labels: "some=label",
 				},
@@ -40,7 +52,8 @@ func DefaultCCSpec() controllercontext.ContextSpec {
 			},
 			Provider: "aws",
 			Registry: controllercontext.ContextSpecRegistry{
-				Domain: "RegistryDomain",
+				Domain:               "RegistryDomain",
+				PullProgressDeadline: "SomeProgressDeadline",
 			},
 			SSO: controllercontext.ContextSpecSSO{
 				PublicKey: "SSOPublicKey",

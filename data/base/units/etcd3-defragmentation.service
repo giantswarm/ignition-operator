@@ -5,7 +5,7 @@ Requires=docker.service etcd3.service
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/network-environment
-Environment=IMAGE={{ .RegistryDomain }}/{{ .Images.Etcd }}
+Environment=IMAGE={{ .Registry.Domain }}/{{ .Etcd.Image }}
 Environment=NAME=%p.service
 ExecStartPre=-/usr/bin/docker stop  $NAME
 ExecStartPre=-/usr/bin/docker rm  $NAME
