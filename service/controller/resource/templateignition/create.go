@@ -3,6 +3,7 @@ package templateignition
 import (
 	"context"
 
+	"github.com/giantswarm/apiextensions/pkg/apis/core/v1alpha1"
 	"github.com/giantswarm/microerror"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -43,14 +44,25 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 		},
 	}
 
-	_, err = r.k8sClient.K8sClient().CoreV1().ConfigMaps("giantswarm").Update(cm)
+	cm, err = r.k8sClient.K8sClient().CoreV1().ConfigMaps(key.DefaultNamespace).Update(cm)
 	if apierrors.IsNotFound(err) {
-		r.k8sClient.K8sClient().CoreV1().ConfigMaps("giantswarm").Create(cm)
+		cm, err = r.k8sClient.K8sClient().CoreV1().ConfigMaps(key.DefaultNamespace).Create(cm)
 		if err != nil {
 			return microerror.Mask(err)
 		}
 
 	} else if err != nil {
+		return microerror.Mask(err)
+	}
+
+	cr.Status.ConfigMap = v1alpha1.IgnitionStatusConfigMap{
+		Name:            cm.Name,
+		Namespace:       cm.Namespace,
+		ResourceVersion: cm.ResourceVersion,
+	}
+
+	_, err = r.k8sClient.G8sClient().CoreV1alpha1().Ignitions(key.DefaultNamespace).UpdateStatus(&cr)
+	if err != nil {
 		return microerror.Mask(err)
 	}
 
