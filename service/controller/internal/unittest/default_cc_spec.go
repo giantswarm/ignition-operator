@@ -15,6 +15,7 @@ func DefaultCCSpec() controllercontext.ContextSpec {
 			},
 			Etcd: controllercontext.ContextSpecEtcd{
 				Domain: "EtcdDomain",
+				Image:  "EtcdImage",
 				Port:   1234,
 				Prefix: "EtcdPrefix",
 			},
