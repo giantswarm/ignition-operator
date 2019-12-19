@@ -3,10 +3,10 @@ package key
 import (
 	"bytes"
 	"encoding/base64"
-	"html/template"
 	"io"
 	"os"
 	"path/filepath"
+	"text/template"
 
 	"github.com/Masterminds/sprig"
 	"github.com/giantswarm/apiextensions/pkg/apis/core/v1alpha1"
@@ -42,7 +42,7 @@ func Render(values interface{}, filesdir string, b64 bool) (map[string]string, e
 			return microerror.Mask(err)
 		}
 
-		tmpl, err := template.New(path).Funcs(sprig.FuncMap()).Parse(string(file))
+		tmpl, err := template.New(path).Funcs(sprig.TxtFuncMap()).Parse(string(file))
 		if err != nil {
 			return microerror.Mask(err)
 		}
