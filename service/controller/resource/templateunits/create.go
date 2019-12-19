@@ -4,17 +4,21 @@ import (
 	"context"
 
 	"github.com/giantswarm/microerror"
-	"github.com/shurcooL/httpfs/vfsutil"
 
-	"github.com/giantswarm/ignition-operator/data"
+	"github.com/giantswarm/ignition-operator/service/controller/controllercontext"
+	"github.com/giantswarm/ignition-operator/service/controller/key"
 )
 
 func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
-	b, err := vfsutil.ReadFile(data.Assets, "worker_template.yaml")
+	cc, err := controllercontext.FromContext(ctx)
 	if err != nil {
 		return microerror.Mask(err)
 	}
 
-	r.logger.LogCtx(ctx, string(b))
+	cc.Status.Units, err = key.Render(cc.Spec, key.UnitPath)
+	if err != nil {
+		return microerror.Mask(err)
+	}
+
 	return nil
 }

@@ -32,6 +32,7 @@ func DefaultCCSpec() controllercontext.ContextSpec {
 				Domain: "K8sDomain",
 				Kubelet: controllercontext.ContextSpecKubernetesKubelet{
 					Domain: "K8sKubeletDomain",
+					Labels: "some=label",
 				},
 				Image:   "K8sImage",
 				IPRange: "K8sIPRange",

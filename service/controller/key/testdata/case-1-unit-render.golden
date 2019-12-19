@@ -1,0 +1,135 @@
+10-giantswarm-extra-args.conf: |-
+  [Service]
+  CPUAccounting=true
+  MemoryAccounting=true
+  Slice=kubereserved.slice
+  Environment="DOCKER_CGROUPS=--exec-opt native.cgroupdriver=cgroupfs --cgroup-parent=/kubereserved.slice --log-opt max-size=25m --log-opt max-file=2 --log-opt labels=io.kubernetes.container.hash,io.kubernetes.container.name,io.kubernetes.pod.name,io.kubernetes.pod.namespace,io.kubernetes.pod.uid"
+  Environment="DOCKER_OPT_BIP=--bip=
+audit-rules.service: |
+  [Service]
+  ExecStartPre=/bin/bash -c "while [ ! -f /etc/audit/rules.d/10-docker.rules ]; do echo 'Waiting for /etc/audit/rules.d/10-docker.rules to be written' && sleep 1; done"
+containerd.service: |
+  [Service]
+  CPUAccounting=true
+  MemoryAccounting=true
+  Slice=kubereserved.slice
+etcd3-defragmentation.service: |-
+  [Unit]
+  Description=etcd defragmentation job
+  After=docker.service etcd3.service
+  Requires=docker.service etcd3.service
+  [Service]
+  Type=oneshot
+  EnvironmentFile=/etc/network-environment
+  Environment=IMAGE=
+etcd3-defragmentation.timer: |
+  [Unit]
+  Description=Execute etcd3-defragmentation every day at 3.30AM UTC
+  [Timer]
+  OnCalendar=*-*-* 03:30:00 UTC
+  [Install]
+  WantedBy=multi-user.target
+etcd3.service: |-
+  [Unit]
+  Description=etcd3
+  Wants=k8s-setup-network-env.service
+  After=k8s-setup-network-env.service
+  Conflicts=etcd.service etcd2.service
+  StartLimitIntervalSec=0
+  [Service]
+  Restart=always
+  RestartSec=0
+  TimeoutStopSec=10
+  LimitNOFILE=40000
+  CPUAccounting=true
+  MemoryAccounting=true
+  Slice=kubereserved.slice
+  Environment=IMAGE=
+k8s-addons.service: |
+  [Unit]
+  Description=Kubernetes Addons
+  Wants=k8s-kubelet.service k8s-setup-network-env.service
+  After=k8s-kubelet.service k8s-setup-network-env.service
+  [Service]
+  Type=oneshot
+  ExecStart=/opt/k8s-addons
+  # https://github.com/kubernetes/kubernetes/issues/71078
+  ExecStartPost=/usr/bin/systemctl restart k8s-kubelet.service
+  [Install]
+  WantedBy=multi-user.target
+k8s-setup-download-hyperkube.service: |-
+  [Unit]
+  Description=Pulls hyperkube binary from image to local FS
+  After=docker.service
+  Requires=docker.service
+  [Service]
+  Type=oneshot
+  RemainAfterExit=yes
+  TimeoutStartSec=0
+  Environment="IMAGE=
+k8s-setup-kubelet-config.service: |
+  [Unit]
+  Description=k8s-setup-kubelet-config Service
+  After=k8s-setup-network-env.service docker.service
+  Requires=k8s-setup-network-env.service docker.service
+  [Service]
+  Type=oneshot
+  RemainAfterExit=yes
+  TimeoutStartSec=0
+  EnvironmentFile=/etc/network-environment
+  ExecStart=/bin/bash -c '/usr/bin/envsubst </etc/kubernetes/config/kubelet.yaml.tmpl >/etc/kubernetes/config/kubelet.yaml'
+  [Install]
+  WantedBy=multi-user.target
+k8s-setup-network-env.service: |-
+  [Unit]
+  Description=k8s-setup-network-env Service
+  Wants=network.target docker.service wait-for-domains.service
+  After=network.target docker.service wait-for-domains.service
+  [Service]
+  Type=oneshot
+  TimeoutStartSec=0
+  Environment="IMAGE=
+kubereserved.slice: |
+  [Unit]
+  Description=Limited resources slice for Kubernetes services
+  Documentation=man:systemd.special(7)
+  DefaultDependencies=no
+  Before=slices.target
+  Requires=-.slice
+  After=-.slice
+master-k8s-kubelet.service: "[Unit]\nWants=k8s-setup-network-env.service k8s-setup-kubelet-config.service
+  k8s-setup-download-hyperkube.service\nAfter=k8s-setup-network-env.service k8s-setup-kubelet-config.service
+  k8s-setup-download-hyperkube.service\nDescription=k8s-kubelet\nStartLimitIntervalSec=0\n[Service]\nTimeoutStartSec=300\nRestart=always\nRestartSec=0\nTimeoutStopSec=10\nSlice=kubereserved.slice\nCPUAccounting=true\nMemoryAccounting=true\nEnvironment=\"ETCD_CA_CERT_FILE=/etc/kubernetes/ssl/etcd/server-ca.pem\"\nEnvironment=\"ETCD_CERT_FILE=/etc/kubernetes/ssl/etcd/server-crt.pem\"\nEnvironment=\"ETCD_KEY_FILE=/etc/kubernetes/ssl/etcd/server-key.pem\"\nEnvironmentFile=/etc/network-environment\nExecStart=/opt/bin/hyperkube
+  kubelet \\\n  "
+os-hardeing.service: |
+  [Unit]
+  Description=Apply os hardening
+  [Service]
+  Type=oneshot
+  ExecStartPre=-/bin/bash -c "gpasswd -d core rkt; gpasswd -d core docker; gpasswd -d core wheel"
+  ExecStartPre=/bin/bash -c "until [ -f '/etc/sysctl.d/hardening.conf' ]; do echo Waiting for sysctl file; sleep 1s;done;"
+  ExecStart=/usr/sbin/sysctl -p /etc/sysctl.d/hardening.conf
+  [Install]
+  WantedBy=multi-user.target
+set-certs-group-owner-permission-giantswarm.service: |
+  [Unit]
+  Description=Change group owner for certificates to giantswarm
+  Wants=k8s-kubelet.service k8s-setup-network-env.service
+  After=k8s-kubelet.service k8s-setup-network-env.service
+  [Service]
+  Type=oneshot
+  ExecStart=/bin/sh -c "find /etc/kubernetes/ssl -name '*.pem' -print | xargs -i  sh -c 'chown root:giantswarm {} && chmod 640 {}'"
+  [Install]
+  WantedBy=multi-user.target
+wait-for-domains.service: |
+  [Unit]
+  Description=Wait for etcd and k8s API domains to be available
+  [Service]
+  Type=oneshot
+  ExecStart=/opt/wait-for-domains
+  [Install]
+  WantedBy=multi-user.target
+worker-k8s-kubelet.service: "[Unit]\nWants=k8s-setup-network-env.service k8s-setup-kubelet-config.service
+  k8s-setup-download-hyperkube.service\nAfter=k8s-setup-network-env.service k8s-setup-kubelet-config.service
+  k8s-setup-download-hyperkube.service\nDescription=k8s-kubelet\nStartLimitIntervalSec=0\n[Service]\nTimeoutStartSec=300\nRestart=always\nRestartSec=0\nTimeoutStopSec=10\nSlice=kubereserved.slice\nCPUAccounting=true\nMemoryAccounting=true\nEnvironment=\"ETCD_CA_CERT_FILE=/etc/kubernetes/ssl/etcd/client-ca.pem\"\nEnvironment=\"ETCD_CERT_FILE=/etc/kubernetes/ssl/etcd/client-crt.pem\"\nEnvironment=\"ETCD_KEY_FILE=/etc/kubernetes/ssl/etcd/client-key.pem\"\nEnvironmentFile=/etc/network-environment\nExecStart=/opt/bin/hyperkube
+  kubelet \\\n  "

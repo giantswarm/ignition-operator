@@ -49,6 +49,7 @@ type ContextSpecKubernetesDNS struct {
 
 type ContextSpecKubernetesKubelet struct {
 	Domain string `json:"domain" yaml:"domain"`
+	Labels string `json:"labels" yaml:"labels"`
 }
 
 type ContextSpecRegistry struct {
