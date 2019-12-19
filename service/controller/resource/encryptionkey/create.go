@@ -19,12 +19,12 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 		return microerror.Mask(err)
 	}
 
-	cc.Spec = crToCC(cr)
+	cc.Spec = crToCCSpec(cr)
 
 	return nil
 }
 
-func crToCC(cr v1alpha1.Ignition) controllercontext.ContextSpec {
+func crToCCSpec(cr v1alpha1.Ignition) controllercontext.ContextSpec {
 	var ccSpec controllercontext.ContextSpec
 	{
 		ccSpec = controllercontext.ContextSpec{

@@ -11,7 +11,7 @@ conf/calicoctl.cfg: |
   kind: CalicoAPIConfig
   metadata:
   spec:
-    etcdEndpoints: https://abc:0
+    etcdEndpoints: https://EtcdDomain:1234
     etcdKeyFile: /etc/kubernetes/ssl/etcd/server-key.pem
     etcdCertFile: /etc/kubernetes/ssl/etcd/server-crt.pem
     etcdCACertFile: /etc/kubernetes/ssl/etcd/server-ca.pem
@@ -22,7 +22,7 @@ conf/crictl: |
   debug: false
 conf/etcd-alias: |
   alias etcdctl="ETCDCTL_API=3 \
-      ETCDCTL_ENDPOINTS=https://abc:0 \
+      ETCDCTL_ENDPOINTS=https://EtcdDomain:1234 \
       ETCDCTL_CACERT=/etc/kubernetes/ssl/etcd/client-ca.pem \
       ETCDCTL_CERT=/etc/kubernetes/ssl/etcd/client-crt.pem \
       ETCDCTL_KEY=/etc/kubernetes/ssl/etcd/client-key.pem \
@@ -80,7 +80,7 @@ conf/k8s-addons: |
 
   export KUBECONFIG=/etc/kubernetes/kubeconfig/addons.yaml
   # kubectl 1.12.2
-  KUBECTL=/giantswarm/docker-kubectl:f5cae44c480bd797dc770dd5f62d40b74063c0d7
+  KUBECTL=RegistryDomain/giantswarm/docker-kubectl:f5cae44c480bd797dc770dd5f62d40b74063c0d7
 
   /usr/bin/docker pull $KUBECTL
 
@@ -132,7 +132,7 @@ conf/k8s-addons: |
 
   # wait for etcd dns (return code 35 is bad certificate which is good enough here)
   while
-      curl "https://abc:0" -k 2>/dev/null >/dev/null
+      curl "https://EtcdDomain:1234" -k 2>/dev/null >/dev/null
       RET_CODE=$?
       [ "$RET_CODE" -ne "35" ]
   do
@@ -259,10 +259,10 @@ conf/sshd_config: |
   AllowTcpForwarding no
   AllowAgentForwarding no
 conf/trusted-user-ca-keys.pem: |
-  some secret
+  SSOPublicKey
 conf/wait-for-domains: |
   #!/bin/bash
-  domains="abc  quay.io"
+  domains="EtcdDomain APIDomain quay.io"
 
   for domain in $domains; do
   until nslookup $domain; do
@@ -279,7 +279,7 @@ config/kube-proxy.yaml: |
   kind: KubeProxyConfiguration
   mode: iptables
   resourceContainer: /kube-proxy
-  clusterCIDR: /
+  clusterCIDR: CalicoSubnet/CalicoCIDR
   metricsBindAddress: 0.0.0.0:10249
 config/kubelet-master.yaml.tmpl: |
   kind: KubeletConfiguration
@@ -289,8 +289,8 @@ config/kubelet-master.yaml.tmpl: |
   healthzBindAddress: ${DEFAULT_IPV4}
   healthzPort: 10248
   clusterDNS:
-    - k8sdnsIP
-  clusterDomain: k8sdomain
+    - K8sDNSIP
+  clusterDomain: K8sDomain
   staticPodPath: /etc/kubernetes/manifests
   evictionSoft:
     memory.available: "500Mi"
@@ -327,8 +327,8 @@ config/kubelet-worker.yaml.tmpl: |
   healthzBindAddress: ${DEFAULT_IPV4}
   healthzPort: 10248
   clusterDNS:
-    - k8sdnsIP
-  clusterDomain: k8sdomain
+    - K8sDNSIP
+  clusterDomain: K8sDomain
   evictionSoft:
     memory.available: "500Mi"
   evictionHard:
@@ -390,7 +390,7 @@ k8s-resource/calico-all.yaml: |
     namespace: kube-system
   data:
     # Configure this with the location of your etcd cluster.
-    etcd_endpoints: "https://abc:0"
+    etcd_endpoints: "https://EtcdDomain:1234"
 
     # If you're using TLS enabled etcd uncomment the following.
     # You must also populate the Secret below with these files.
@@ -403,7 +403,7 @@ k8s-resource/calico-all.yaml: |
     calico_backend: "bird"
 
     # Configure the MTU to use
-    veth_mtu: ""
+    veth_mtu: "CalicoMTU"
 
     # The CNI network configuration to install on each node.  The special
     # values in this config will be automatically populated.
@@ -685,7 +685,7 @@ k8s-resource/calico-all.yaml: |
           # This container installs the CNI binaries
           # and CNI network config file on each node.
           - name: install-cni
-            image: /giantswarm/cni:v3.9.1
+            image: RegistryDomain/giantswarm/cni:v3.9.1
             command: ["/install-cni.sh"]
             env:
               # Name of the CNI config file to create.
@@ -731,7 +731,7 @@ k8s-resource/calico-all.yaml: |
           # container programs network policy and routes on each
           # host.
           - name: calico-node
-            image: /giantswarm/node:v3.9.1
+            image: RegistryDomain/giantswarm/node:v3.9.1
             env:
               # The location of the Calico etcd cluster.
               - name: ETCD_ENDPOINTS
@@ -787,7 +787,7 @@ k8s-resource/calico-all.yaml: |
               # chosen from this range. Changing this value after installation will have
               # no effect. This should fall within `--cluster-cidr`.
               - name: CALICO_IPV4POOL_CIDR
-                value: "/"
+                value: "CalicoSubnet/CalicoCIDR"
               # Disable file logging so `kubectl logs` works.
               - name: CALICO_DISABLE_FILE_LOGGING
                 value: "true"
@@ -920,7 +920,7 @@ k8s-resource/calico-all.yaml: |
         priorityClassName: system-cluster-critical
         containers:
           - name: calico-kube-controllers
-            image: /giantswarm/kube-controllers:v3.9.1
+            image: RegistryDomain/giantswarm/kube-controllers:v3.9.1
             env:
               # The location of the Calico etcd cluster.
               - name: ETCD_ENDPOINTS
@@ -1259,7 +1259,7 @@ k8s-resource/kube-proxy-ds.yaml: |
         serviceAccountName: kube-proxy
         containers:
           - name: kube-proxy
-            image: /
+            image: RegistryDomain/K8sImage
             command:
             - /hyperkube
             - kube-proxy
@@ -1460,30 +1460,102 @@ k8s-resource/psp_roles.yaml: |
     - privileged
     verbs:
     - use
-k8s-resource/rbac_bindings.yaml: "## User\nkind: ClusterRoleBinding\napiVersion: rbac.authorization.k8s.io/v1\nmetadata:\n
-  \ name: giantswarm-admin\nsubjects:\n- kind: User\n  name: \n  apiGroup: rbac.authorization.k8s.io\nroleRef:\n
-  \ kind: ClusterRole\n  name: cluster-admin\n  apiGroup: rbac.authorization.k8s.io\n---\n##
-  Worker\nkind: ClusterRoleBinding\napiVersion: rbac.authorization.k8s.io/v1\nmetadata:\n
-  \ name: kubelet\nsubjects:\n- kind: User\n  name: \n  apiGroup: rbac.authorization.k8s.io\nroleRef:\n
-  \ kind: ClusterRole\n  name: system:node\n  apiGroup: rbac.authorization.k8s.io\n---\nkind:
-  ClusterRoleBinding\napiVersion: rbac.authorization.k8s.io/v1\nmetadata:\n  name:
-  proxy\nsubjects:\n- kind: User\n  name: \n  apiGroup: rbac.authorization.k8s.io\nroleRef:\n
-  \ kind: ClusterRole\n  name: system:node-proxier\n  apiGroup: rbac.authorization.k8s.io\n---\n##
-  Master\nkind: ClusterRoleBinding\napiVersion: rbac.authorization.k8s.io/v1\nmetadata:\n
-  \ name: kube-controller-manager\nsubjects:\n- kind: User\n  name: \n  apiGroup:
-  rbac.authorization.k8s.io\nroleRef:\n  kind: ClusterRole\n  name: system:kube-controller-manager\n
-  \ apiGroup: rbac.authorization.k8s.io\n---\nkind: ClusterRoleBinding\napiVersion:
-  rbac.authorization.k8s.io/v1\nmetadata:\n  name: kube-scheduler\nsubjects:\n- kind:
-  User\n  name: \n  apiGroup: rbac.authorization.k8s.io\nroleRef:\n  kind: ClusterRole\n
-  \ name: system:kube-scheduler\n  apiGroup: rbac.authorization.k8s.io\n---\n## node-operator\nkind:
-  ClusterRoleBinding\napiVersion: rbac.authorization.k8s.io/v1\nmetadata:\n  name:
-  node-operator\nsubjects:\n- kind: User\n  name: node-operator.someshit\n  apiGroup:
-  rbac.authorization.k8s.io\nroleRef:\n  kind: ClusterRole\n  name: node-operator\n
-  \ apiGroup: rbac.authorization.k8s.io\n---\n## prometheus-external is prometheus
-  from host cluster\nkind: ClusterRoleBinding\napiVersion: rbac.authorization.k8s.io/v1\nmetadata:\n
-  \ name: prometheus-external\nsubjects:\n- kind: User\n  name: prometheus.someshit\n
-  \ apiGroup: rbac.authorization.k8s.io\nroleRef:\n  kind: ClusterRole\n  name: prometheus-external\n
-  \ apiGroup: rbac.authorization.k8s.io\n"
+k8s-resource/rbac_bindings.yaml: |
+  ## User
+  kind: ClusterRoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1
+  metadata:
+    name: giantswarm-admin
+  subjects:
+  - kind: User
+    name: APIDomain
+    apiGroup: rbac.authorization.k8s.io
+  roleRef:
+    kind: ClusterRole
+    name: cluster-admin
+    apiGroup: rbac.authorization.k8s.io
+  ---
+  ## Worker
+  kind: ClusterRoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1
+  metadata:
+    name: kubelet
+  subjects:
+  - kind: User
+    name: K8sKubeletDomain
+    apiGroup: rbac.authorization.k8s.io
+  roleRef:
+    kind: ClusterRole
+    name: system:node
+    apiGroup: rbac.authorization.k8s.io
+  ---
+  kind: ClusterRoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1
+  metadata:
+    name: proxy
+  subjects:
+  - kind: User
+    name: K8sKubeletDomain
+    apiGroup: rbac.authorization.k8s.io
+  roleRef:
+    kind: ClusterRole
+    name: system:node-proxier
+    apiGroup: rbac.authorization.k8s.io
+  ---
+  ## Master
+  kind: ClusterRoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1
+  metadata:
+    name: kube-controller-manager
+  subjects:
+  - kind: User
+    name: APIDomain
+    apiGroup: rbac.authorization.k8s.io
+  roleRef:
+    kind: ClusterRole
+    name: system:kube-controller-manager
+    apiGroup: rbac.authorization.k8s.io
+  ---
+  kind: ClusterRoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1
+  metadata:
+    name: kube-scheduler
+  subjects:
+  - kind: User
+    name: APIDomain
+    apiGroup: rbac.authorization.k8s.io
+  roleRef:
+    kind: ClusterRole
+    name: system:kube-scheduler
+    apiGroup: rbac.authorization.k8s.io
+  ---
+  ## node-operator
+  kind: ClusterRoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1
+  metadata:
+    name: node-operator
+  subjects:
+  - kind: User
+    name: node-operator.ClusterBaseDomain
+    apiGroup: rbac.authorization.k8s.io
+  roleRef:
+    kind: ClusterRole
+    name: node-operator
+    apiGroup: rbac.authorization.k8s.io
+  ---
+  ## prometheus-external is prometheus from host cluster
+  kind: ClusterRoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1
+  metadata:
+    name: prometheus-external
+  subjects:
+  - kind: User
+    name: prometheus.ClusterBaseDomain
+    apiGroup: rbac.authorization.k8s.io
+  roleRef:
+    kind: ClusterRole
+    name: prometheus-external
+    apiGroup: rbac.authorization.k8s.io
 k8s-resource/rbac_roles.yaml: |
   ## node-operator
   kind: ClusterRole
@@ -1531,7 +1603,7 @@ kubeconfig/addons.yaml: |
   - name: local
     cluster:
       certificate-authority: /etc/kubernetes/ssl/apiserver-ca.pem
-      server: https://
+      server: https://APIDomain
   contexts:
   - context:
       cluster: local
@@ -1550,7 +1622,7 @@ kubeconfig/controller-manager.yaml: |
   - name: local
     cluster:
       certificate-authority: /etc/kubernetes/ssl/apiserver-ca.pem
-      server: https://
+      server: https://APIDomain
   contexts:
   - context:
       cluster: local
@@ -1569,7 +1641,7 @@ kubeconfig/kube-proxy-master.yaml: |
   - name: local
     cluster:
       certificate-authority: /etc/kubernetes/ssl/apiserver-ca.pem
-      server: https://
+      server: https://APIDomain
   contexts:
   - context:
       cluster: local
@@ -1588,7 +1660,7 @@ kubeconfig/kube-proxy-worker.yaml: |
   - name: local
     cluster:
       certificate-authority: /etc/kubernetes/ssl/worker-ca.pem
-      server: https://
+      server: https://APIDomain
   contexts:
   - context:
       cluster: local
@@ -1607,7 +1679,7 @@ kubeconfig/kubelet-master.yaml: |
   - name: local
     cluster:
       certificate-authority: /etc/kubernetes/ssl/apiserver-ca.pem
-      server: https://
+      server: https://APIDomain
   contexts:
   - context:
       cluster: local
@@ -1626,7 +1698,7 @@ kubeconfig/kubelet-worker.yaml: |
   - name: local
     cluster:
       certificate-authority: /etc/kubernetes/ssl/worker-ca.pem
-      server: https://
+      server: https://APIDomain
   contexts:
   - context:
       cluster: local
@@ -1645,7 +1717,7 @@ kubeconfig/scheduler.yaml: |
   - name: local
     cluster:
       certificate-authority: /etc/kubernetes/ssl/apiserver-ca.pem
-      server: https://
+      server: https://APIDomain
   contexts:
   - context:
       cluster: local
@@ -1702,7 +1774,7 @@ manifests/k8s-api-server.yaml: |-
     priorityClassName: system-node-critical
     containers:
     - name: k8s-api-server
-      image: /
+      image: RegistryDomain/K8sImage
       env:
       - name: HOST_IP
         valueFrom:
@@ -1716,9 +1788,9 @@ manifests/k8s-api-server.yaml: |-
       - --insecure-port=0
       - --kubelet-https=true
       - --kubelet-preferred-address-types=InternalIP
-      - --secure-port=0
+      - --secure-port=9001
       - --bind-address=0.0.0.0
-      - --etcd-prefix=
+      - --etcd-prefix=EtcdPrefix
       - --profiling=false
       - --service-account-lookup=true
       - --authorization-mode=RBAC
@@ -1741,13 +1813,13 @@ manifests/k8s-controller-manager.yaml: |
     priorityClassName: system-node-critical
     containers:
     - name: k8s-controller-manager
-      image: /
+      image: RegistryDomain/K8sImage
       command:
       - /hyperkube
       - kube-controller-manager
       - --logtostderr=true
       - --v=2
-      - --cloud-provider=
+      - --cloud-provider=aws
       - --terminated-pod-gc-threshold=10
       - --use-service-account-credentials=true
       - --kubeconfig=/etc/kubernetes/kubeconfig/controller-manager.yaml
@@ -1807,7 +1879,7 @@ manifests/k8s-scheduler.yaml: |
     priorityClassName: system-node-critical
     containers:
     - name: k8s-scheduler
-      image: /
+      image: RegistryDomain/K8sImage
       command:
       - /hyperkube
       - kube-scheduler
