@@ -5,8 +5,8 @@ port: 10250
 healthzBindAddress: ${DEFAULT_IPV4}
 healthzPort: 10248
 clusterDNS:
-  - {{.Cluster.Kubernetes.DNS.IP}}
-clusterDomain: {{.Cluster.Kubernetes.Domain}}
+  - {{ .Kubernetes.DNS.IP }}
+clusterDomain: {{ .Kubernetes.Domain }}
 evictionSoft:
   memory.available: "500Mi"
 evictionHard:

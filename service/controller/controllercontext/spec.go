@@ -1,73 +1,59 @@
 package controllercontext
 
 type ContextSpec struct {
-	// APIServerEncryptionKey is AES-CBC with PKCS#7 padding key to encrypt API
-	// etcd data.
-	APIServerEncryptionKey string
-	BaseDomain             string
-	// DisableCalico flag. When set removes all calico related Kubernetes
-	// manifests from the cloud config together with their initialization.
-	DisableCalico bool
-	// DisableEncryptionAtREST flag. When set removes all manifests from the cloud
-	// config related to Kubernetes encryption at REST.
-	DisableEncryptionAtREST bool
-	// DisableIngressControllerService flag. When set removes the manifest for
-	// the Ingress Controller service. This allows us to migrate providers to
-	// chart-operator independently.
-	DisableIngressControllerService bool
-	// Hyperkube allows to pass extra `docker run` and `command` arguments
-	// to hyperkube image commands. This allows to e.g. add cloud provider
-	// extensions.
-	Hyperkube Hyperkube
-	// EtcdPort allows the Etcd port to be specified.
-	// aws-operator sets this to the Etcd listening port so Calico on the
-	// worker nodes can access via a CNAME record to the master.
-	EtcdPort int
-	// ImagePullProgressDeadline is the duration after which image pulling is
-	// cancelled if no progress has been made.
-	ImagePullProgressDeadline string
-	// RegistryDomain is the host of the docker image registry to use.
-	RegistryDomain string
-	SSOPublicKey   string
-	// Container images used in the cloud-config templates
-	Images Images
+	BaseDomain string                `json:"basedomain" yaml:"basedomain"`
+	Calico     ContextSpecCalico     `json:"calico" yaml:"calico"`
+	Etcd       ContextSpecEtcd       `json:"etcd" yaml:"etcd"`
+	Ingress    ContextSpecIngress    `json:"ingress" yaml:"ingress"`
+	Kubernetes ContextSpecKubernetes `json:"kubernetes" yaml:"kubernetes"`
+	// Defines the provider which should be rendered.
+	Provider string              `json:"provider" yaml:"provider"`
+	Registry ContextSpecRegistry `json:"registry" yaml:"registry"`
+	SSO      ContextSpecSSO      `json:"sso" yaml:"sso"`
 }
 
-type Images struct {
-	Kubernetes string
-	Etcd       string
+type ContextSpecCalico struct {
+	CIDR    string `json:"cidr" yaml:"cidr"`
+	Disable bool   `json:"disable" yaml:"disable"`
+	MTU     string `json:"mtu" yaml:"mtu"`
+	Subnet  string `json:"subnet" yaml:"subnet"`
 }
 
-type Hyperkube struct {
-	Apiserver         HyperkubeApiserver
-	ControllerManager HyperkubeControllerManager
-	Kubelet           HyperkubeKubelet
+type ContextSpecEtcd struct {
+	Domain string `json:"domain" yaml:"domain"`
+	Port   int    `json:"port" yaml:"port"`
+	Prefix string `json:"prefix" yaml:"prefix"`
 }
 
-type HyperkubeApiserver struct {
-	Pod HyperkubePod
+type ContextSpecIngress struct {
+	Disable bool `json:"disable" yaml:"disable"`
 }
 
-type HyperkubeControllerManager struct {
-	Pod HyperkubePod
+type ContextSpecKubernetes struct {
+	API     ContextSpecKubernetesAPI     `json:"api" yaml:"api"`
+	DNS     ContextSpecKubernetesDNS     `json:"dns" yaml:"dns"`
+	Domain  string                       `json:"domain" yaml:"domain"`
+	Kubelet ContextSpecKubernetesKubelet `json:"kubelet" yaml:"kubelet"`
+	Image   string                       `json:"image" yaml:"image"`
+	IPRange string                       `json:"iprange" yaml:"iprange"`
 }
 
-type HyperkubeKubelet struct {
-	Docker HyperkubeDocker
+type ContextSpecKubernetesAPI struct {
+	Domain     string `json:"domain" yaml:"domain"`
+	SecurePort int    `json:"secureport" yaml:"secureport"`
 }
 
-type HyperkubeDocker struct {
-	RunExtraArgs     []string
-	CommandExtraArgs []string
+type ContextSpecKubernetesDNS struct {
+	IP string `json:"ip" yaml:"ip"`
 }
 
-type HyperkubePod struct {
-	HyperkubePodHostExtraMounts []HyperkubePodHostMount
-	CommandExtraArgs            []string
+type ContextSpecKubernetesKubelet struct {
+	Domain string `json:"domain" yaml:"domain"`
 }
 
-type HyperkubePodHostMount struct {
-	Name     string
-	Path     string
-	ReadOnly bool
+type ContextSpecRegistry struct {
+	Domain string `json:"domain" yaml:"domain"`
+}
+type ContextSpecSSO struct {
+	PublicKey string `json:"publicKey" yaml:"publicKey"`
 }

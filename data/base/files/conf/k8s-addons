@@ -2,7 +2,7 @@
 
 export KUBECONFIG=/etc/kubernetes/kubeconfig/addons.yaml
 # kubectl 1.12.2
-KUBECTL={{ .RegistryDomain }}/giantswarm/docker-kubectl:f5cae44c480bd797dc770dd5f62d40b74063c0d7
+KUBECTL={{ .Registry.Domain }}/giantswarm/docker-kubectl:f5cae44c480bd797dc770dd5f62d40b74063c0d7
 
 /usr/bin/docker pull $KUBECTL
 
@@ -10,7 +10,7 @@ KUBECTL={{ .RegistryDomain }}/giantswarm/docker-kubectl:f5cae44c480bd797dc770dd5
 while [ "$(/usr/bin/docker run -e KUBECONFIG=${KUBECONFIG} --net=host --rm -v /etc/kubernetes:/etc/kubernetes $KUBECTL get cs | grep Healthy | wc -l)" -ne "3" ]; do sleep 1 && echo 'Waiting for healthy k8s'; done
 
 # label namespaces (required for network egress policies)
-NAMESPACES="default kube-system" 
+NAMESPACES="default kube-system"
 for namespace in ${NAMESPACES}
 do
     if ! /usr/bin/docker run -e KUBECONFIG=${KUBECONFIG} --net=host --rm -v /etc/kubernetes:/etc/kubernetes $KUBECTL get namespaces -l name=${namespace} | grep ${namespace}; then
@@ -54,7 +54,7 @@ done
 
 # wait for etcd dns (return code 35 is bad certificate which is good enough here)
 while
-    curl "https://{{ .Cluster.Etcd.Domain }}:{{ .EtcdPort }}" -k 2>/dev/null >/dev/null
+    curl "https://{{ .Etcd.Domain }}:{{ .Etcd.Port }}" -k 2>/dev/null >/dev/null
     RET_CODE=$?
     [ "$RET_CODE" -ne "35" ]
 do
@@ -89,7 +89,7 @@ echo "kube-proxy successfully installed"
 # restart ds to apply config from configmap
 /usr/bin/docker run -e KUBECONFIG=${KUBECONFIG} --net=host --rm -v /etc/kubernetes:/etc/kubernetes $KUBECTL delete pods -l k8s-app=kube-proxy -n kube-system
 
-{{ if not .DisableCalico -}}
+{{ if not .Calico.Disable -}}
 
 # apply calico
 CALICO_FILE="calico-all.yaml"
@@ -156,10 +156,7 @@ done
 
 # apply k8s addons
 MANIFESTS=""
-{{ range .ExtraManifests -}}
-MANIFESTS="${MANIFESTS} {{ . }}"
-{{ end -}}
-{{ if not .DisableIngressControllerService -}}
+{{ if not .Ingress.Disable -}}
 MANIFESTS="${MANIFESTS} ingress-controller-svc.yaml"
 {{ end -}}
 

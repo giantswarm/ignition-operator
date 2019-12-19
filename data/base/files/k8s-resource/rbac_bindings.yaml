@@ -5,7 +5,7 @@ metadata:
   name: giantswarm-admin
 subjects:
 - kind: User
-  name: {{.Cluster.Kubernetes.API.Domain}}
+  name: {{ .Kubernetes.API.Domain }}
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
@@ -19,7 +19,7 @@ metadata:
   name: kubelet
 subjects:
 - kind: User
-  name: {{.Cluster.Kubernetes.Kubelet.Domain}}
+  name: {{ .Kubernetes.Kubelet.Domain }}
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
@@ -32,7 +32,7 @@ metadata:
   name: proxy
 subjects:
 - kind: User
-  name: {{.Cluster.Kubernetes.Kubelet.Domain}}
+  name: {{ .Kubernetes.Kubelet.Domain }}
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
@@ -46,7 +46,7 @@ metadata:
   name: kube-controller-manager
 subjects:
 - kind: User
-  name: {{.Cluster.Kubernetes.API.Domain}}
+  name: {{ .Kubernetes.API.Domain }}
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
@@ -59,7 +59,7 @@ metadata:
   name: kube-scheduler
 subjects:
 - kind: User
-  name: {{.Cluster.Kubernetes.API.Domain}}
+  name: {{ .Kubernetes.API.Domain }}
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
@@ -73,7 +73,7 @@ metadata:
   name: node-operator
 subjects:
 - kind: User
-  name: node-operator.{{.BaseDomain}}
+  name: node-operator.{{ .BaseDomain }}
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
@@ -87,7 +87,7 @@ metadata:
   name: prometheus-external
 subjects:
 - kind: User
-  name: prometheus.{{.BaseDomain}}
+  name: prometheus.{{ .BaseDomain }}
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole

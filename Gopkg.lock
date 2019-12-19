@@ -70,7 +70,7 @@
 
 [[projects]]
   branch = "Add-ignition-type"
-  digest = "1:adf246ed4116070bc66dd580cd50989b805c4e87f462ebb85c3aef6668250294"
+  digest = "1:e434281b75cb5aa37e2aa1fee51efa6fa7284321342b8078e6c7b886daeefd82"
   name = "github.com/giantswarm/apiextensions"
   packages = [
     "pkg/apis/application/v1alpha1",
@@ -89,7 +89,7 @@
     "pkg/clientset/versioned/typed/release/v1alpha1",
   ]
   pruneopts = "UT"
-  revision = "bae2e40a241536b60e8e74757a6030d7987de06f"
+  revision = "ba71fd970f7fc98ed353f9737c67f301ea789970"
 
 [[projects]]
   branch = "master"
@@ -1051,6 +1051,7 @@
     "github.com/giantswarm/operatorkit/resource/wrapper/metricsresource",
     "github.com/giantswarm/operatorkit/resource/wrapper/retryresource",
     "github.com/giantswarm/versionbundle",
+    "github.com/shurcooL/httpfs/vfsutil",
     "github.com/shurcooL/vfsgen",
     "github.com/spf13/viper",
     "k8s.io/apimachinery/pkg/runtime",
