@@ -28,25 +28,28 @@ func Render(spec controllercontext.ContextSpec, filesdir string) (map[string]str
 	files := make(map[string]string)
 
 	err := vfsutil.WalkFiles(data.Assets, filesdir, func(path string, f os.FileInfo, rs io.ReadSeeker, err error) error {
-		if f.Mode().IsRegular() {
-			file, err := vfsutil.ReadFile(data.Assets, path)
-			if err != nil {
-				return microerror.Mask(err)
-			}
-
-			tmpl, err := template.New(path).Parse(string(file))
-			if err != nil {
-				return microerror.Maskf(err, "failed to parse file %#q", path)
-			}
-			var data bytes.Buffer
-			tmpl.Execute(&data, spec)
-
-			relativePath, err := filepath.Rel(filesdir, path)
-			if err != nil {
-				return microerror.Mask(err)
-			}
-			files[relativePath] = string(data.Bytes())
+		if !f.Mode().IsRegular() {
+			return nil
 		}
+
+		file, err := vfsutil.ReadFile(data.Assets, path)
+		if err != nil {
+			return microerror.Mask(err)
+		}
+
+		tmpl, err := template.New(path).Parse(string(file))
+		if err != nil {
+			return microerror.Mask(err)
+		}
+		var data bytes.Buffer
+		tmpl.Execute(&data, spec)
+
+		relativePath, err := filepath.Rel(filesdir, path)
+		if err != nil {
+			return microerror.Mask(err)
+		}
+		files[relativePath] = string(data.Bytes())
+
 		return nil
 	})
 	if err != nil {
