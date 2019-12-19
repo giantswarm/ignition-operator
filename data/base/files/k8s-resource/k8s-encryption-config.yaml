@@ -7,5 +7,5 @@ resources:
     - aescbc:
         keys:
         - name: key1
-          secret: {{ .APIServerEncryptionKey }}
+          secret: {{ .Spec.APIServerEncryptionKey }}
     - identity: {}

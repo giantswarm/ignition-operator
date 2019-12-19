@@ -5,7 +5,7 @@ After=network.target docker.service wait-for-domains.service
 [Service]
 Type=oneshot
 TimeoutStartSec=0
-Environment="IMAGE={{ .Docker.NetworkSetup.Image }}"
+Environment="IMAGE={{ .Spec.Docker.NetworkSetup.Image }}"
 Environment="NAME=%p.service"
 ExecStartPre=/usr/bin/mkdir -p /opt/bin/
 ExecStartPre=/usr/bin/docker pull $IMAGE

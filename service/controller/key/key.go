@@ -7,24 +7,28 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Masterminds/sprig"
 	"github.com/giantswarm/apiextensions/pkg/apis/core/v1alpha1"
-	"github.com/giantswarm/ignition-operator/data"
-	"github.com/giantswarm/ignition-operator/pkg/label"
-	"github.com/giantswarm/ignition-operator/service/controller/controllercontext"
 	"github.com/giantswarm/microerror"
 	"github.com/shurcooL/httpfs/vfsutil"
+
+	"github.com/giantswarm/ignition-operator/data"
+	"github.com/giantswarm/ignition-operator/pkg/label"
 )
 
 const (
 	FilePath = "/files"
 	UnitPath = "/units"
+
+	MasterTemplatePath = "master_template.yaml"
+	WorkerTemplatePath = "worker_template.yaml"
 )
 
 func OperatorVersion(getter LabelsGetter) string {
 	return getter.GetLabels()[label.OperatorVersion]
 }
 
-func Render(spec controllercontext.ContextSpec, filesdir string) (map[string]string, error) {
+func Render(values interface{}, filesdir string) (map[string]string, error) {
 	files := make(map[string]string)
 
 	err := vfsutil.WalkFiles(data.Assets, filesdir, func(path string, f os.FileInfo, rs io.ReadSeeker, err error) error {
@@ -37,12 +41,12 @@ func Render(spec controllercontext.ContextSpec, filesdir string) (map[string]str
 			return microerror.Mask(err)
 		}
 
-		tmpl, err := template.New(path).Parse(string(file))
+		tmpl, err := template.New(path).Funcs(sprig.FuncMap()).Parse(string(file))
 		if err != nil {
 			return microerror.Mask(err)
 		}
 		var data bytes.Buffer
-		tmpl.Execute(&data, spec)
+		tmpl.Execute(&data, values)
 
 		relativePath, err := filepath.Rel(filesdir, path)
 		if err != nil {

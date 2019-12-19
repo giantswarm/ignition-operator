@@ -13,7 +13,7 @@ spec:
   priorityClassName: system-node-critical
   containers:
   - name: k8s-scheduler
-    image: {{ .Registry.Domain }}/{{ .Kubernetes.Image }}
+    image: {{ .Spec.Registry.Domain }}/{{ .Spec.Kubernetes.Image }}
     command:
     - /hyperkube
     - kube-scheduler

@@ -5,8 +5,8 @@ port: 10250
 healthzBindAddress: ${DEFAULT_IPV4}
 healthzPort: 10248
 clusterDNS:
-  - {{ .Kubernetes.DNS.IP }}
-clusterDomain: {{ .Kubernetes.Domain }}
+  - {{ .Spec.Kubernetes.DNS.IP }}
+clusterDomain: {{ .Spec.Kubernetes.Domain }}
 staticPodPath: /etc/kubernetes/manifests
 evictionSoft:
   memory.available: "500Mi"

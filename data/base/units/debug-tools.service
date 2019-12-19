@@ -1,0 +1,8 @@
+[Unit]
+Description=Install calicoctl and crictl tools
+After=network.target
+[Service]
+Type=oneshot
+ExecStart=/opt/install-debug-tools
+[Install]
+WantedBy=multi-user.target

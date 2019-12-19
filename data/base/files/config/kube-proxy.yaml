@@ -4,5 +4,5 @@ clientConnection:
 kind: KubeProxyConfiguration
 mode: iptables
 resourceContainer: /kube-proxy
-clusterCIDR: {{ .Calico.Subnet }}/{{ .Calico.CIDR }}
+clusterCIDR: {{ .Spec.Calico.Subnet }}/{{ .Spec.Calico.CIDR }}
 metricsBindAddress: 0.0.0.0:10249

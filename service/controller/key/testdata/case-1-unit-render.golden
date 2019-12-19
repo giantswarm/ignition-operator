@@ -14,6 +14,15 @@ containerd.service: |
   CPUAccounting=true
   MemoryAccounting=true
   Slice=kubereserved.slice
+debug-tools.service: |
+  [Unit]
+  Description=Install calicoctl and crictl tools
+  After=network.target
+  [Service]
+  Type=oneshot
+  ExecStart=/opt/install-debug-tools
+  [Install]
+  WantedBy=multi-user.target
 etcd3-defragmentation.service: |
   [Unit]
   Description=etcd defragmentation job
@@ -51,7 +60,7 @@ etcd3-defragmentation.timer: |
   OnCalendar=*-*-* 03:30:00 UTC
   [Install]
   WantedBy=multi-user.target
-etcd3.service: |
+etcd3.service: |-
   [Unit]
   Description=etcd3
   Wants=k8s-setup-network-env.service
@@ -66,43 +75,7 @@ etcd3.service: |
   CPUAccounting=true
   MemoryAccounting=true
   Slice=kubereserved.slice
-  Environment=IMAGE=RegistryDomain/EtcdImage
-  Environment=NAME=%p.service
-  EnvironmentFile=/etc/network-environment
-  ExecStartPre=-/usr/bin/docker stop  $NAME
-  ExecStartPre=-/usr/bin/docker rm  $NAME
-  ExecStartPre=-/usr/bin/docker pull $IMAGE
-  ExecStartPre=/bin/bash -c "while [ ! -f /etc/kubernetes/ssl/etcd/server-ca.pem ]; do echo 'Waiting for /etc/kubernetes/ssl/etcd/server-ca.pem to be written' && sleep 1; done"
-  ExecStartPre=/bin/bash -c "while [ ! -f /etc/kubernetes/ssl/etcd/server-crt.pem ]; do echo 'Waiting for /etc/kubernetes/ssl/etcd/server-crt.pem to be written' && sleep 1; done"
-  ExecStartPre=/bin/bash -c "while [ ! -f /etc/kubernetes/ssl/etcd/server-key.pem ]; do echo 'Waiting for /etc/kubernetes/ssl/etcd/server-key.pem to be written' && sleep 1; done"
-  ExecStart=/usr/bin/docker run \
-      -v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt \
-      -v /etc/kubernetes/ssl/etcd/:/etc/etcd \
-      -v /var/lib/etcd/:/var/lib/etcd  \
-      --net=host  \
-      --name $NAME \
-      $IMAGE \
-      etcd \
-      --name etcd0 \
-      --trusted-ca-file /etc/etcd/server-ca.pem \
-      --cert-file /etc/etcd/server-crt.pem \
-      --key-file /etc/etcd/server-key.pem\
-      --client-cert-auth=true \
-      --peer-trusted-ca-file /etc/etcd/server-ca.pem \
-      --peer-cert-file /etc/etcd/server-crt.pem \
-      --peer-key-file /etc/etcd/server-key.pem \
-      --peer-client-cert-auth=true \
-      --advertise-client-urls=https://EtcdDomain:1234 \
-      --initial-advertise-peer-urls=https://127.0.0.1:2380 \
-      --listen-client-urls=https://0.0.0.0:2379 \
-      --listen-peer-urls=https://${DEFAULT_IPV4}:2380 \
-      --initial-cluster-token k8s-etcd-cluster \
-      --initial-cluster etcd0=https://127.0.0.1:2380 \
-      --initial-cluster-state new \
-      --data-dir=/var/lib/etcd \
-      --enable-v2
-  [Install]
-  WantedBy=multi-user.target
+  Environment=IMAGE=
 k8s-addons.service: |
   [Unit]
   Description=Kubernetes Addons
@@ -171,7 +144,7 @@ kubereserved.slice: |
   Before=slices.target
   Requires=-.slice
   After=-.slice
-master-k8s-kubelet.service: |
+master-k8s-kubelet.service: |-
   [Unit]
   Wants=k8s-setup-network-env.service k8s-setup-kubelet-config.service k8s-setup-download-hyperkube.service
   After=k8s-setup-network-env.service k8s-setup-kubelet-config.service k8s-setup-download-hyperkube.service
@@ -202,10 +175,7 @@ master-k8s-kubelet.service: |
     --register-node=true \
     --register-with-taints=node-role.kubernetes.io/master=:NoSchedule \
     --kubeconfig=/etc/kubernetes/kubeconfig/kubelet.yaml \
-    --node-labels="node.kubernetes.io/master,node-role.kubernetes.io/master,kubernetes.io/role=master,role=master,ip=${DEFAULT_IPV4},some=label" \
-    --v=2
-  [Install]
-  WantedBy=multi-user.target
+    --node-labels="node.kubernetes.io/master,node-role.kubernetes.io/master,kubernetes.io/role=master,role=master,ip=${DEFAULT_IPV4},
 os-hardeing.service: |
   [Unit]
   Description=Apply os hardening
@@ -234,7 +204,7 @@ wait-for-domains.service: |
   ExecStart=/opt/wait-for-domains
   [Install]
   WantedBy=multi-user.target
-worker-k8s-kubelet.service: |
+worker-k8s-kubelet.service: |-
   [Unit]
   Wants=k8s-setup-network-env.service k8s-setup-kubelet-config.service k8s-setup-download-hyperkube.service
   After=k8s-setup-network-env.service k8s-setup-kubelet-config.service k8s-setup-download-hyperkube.service
@@ -264,7 +234,4 @@ worker-k8s-kubelet.service: |
     --network-plugin=cni \
     --register-node=true \
     --kubeconfig=/etc/kubernetes/kubeconfig/kubelet.yaml \
-    --node-labels="node.kubernetes.io/worker,node-role.kubernetes.io/worker,kubernetes.io/role=worker,role=worker,ip=${DEFAULT_IPV4},some=label" \
-    --v=2
-  [Install]
-  WantedBy=multi-user.target
+    --node-labels="node.kubernetes.io/worker,node-role.kubernetes.io/worker,kubernetes.io/role=worker,role=worker,ip=${DEFAULT_IPV4},
