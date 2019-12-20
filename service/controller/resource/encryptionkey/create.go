@@ -97,6 +97,7 @@ func crToCCSpec(cr v1alpha1.Ignition) controllercontext.ContextSpec {
 			},
 			Etcd: controllercontext.ContextSpecEtcd{
 				Domain: cr.Spec.Etcd.Domain,
+				Image:  cr.Spec.Etcd.Image,
 				Port:   cr.Spec.Etcd.Port,
 				Prefix: cr.Spec.Etcd.Prefix,
 			},
