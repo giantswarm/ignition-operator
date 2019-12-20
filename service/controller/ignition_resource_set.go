@@ -16,6 +16,7 @@ import (
 	"github.com/giantswarm/ignition-operator/service/controller/key"
 	"github.com/giantswarm/ignition-operator/service/controller/resource/encryptionkey"
 	"github.com/giantswarm/ignition-operator/service/controller/resource/templatefiles"
+	"github.com/giantswarm/ignition-operator/service/controller/resource/templateignition"
 	"github.com/giantswarm/ignition-operator/service/controller/resource/templateunits"
 )
 
@@ -65,11 +66,24 @@ func newIgnitionResourceSet(config ignitionResourceSetConfig) (*controller.Resou
 			return nil, microerror.Mask(err)
 		}
 	}
+	var templateignitionResource resource.Interface
+	{
+		c := templateignition.Config{
+			K8sClient: config.K8sClient,
+			Logger:    config.Logger,
+		}
+
+		templateignitionResource, err = templateignition.New(c)
+		if err != nil {
+			return nil, microerror.Mask(err)
+		}
+	}
 
 	resources := []resource.Interface{
 		encryptionkeyResource,
 		templatefilesResource,
 		templateunitsResource,
+		templateignitionResource,
 	}
 
 	{
