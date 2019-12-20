@@ -66,7 +66,7 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 		ResourceVersion: actualCM.ResourceVersion,
 	}
 
-	_, err = r.k8sClient.G8sClient().CoreV1alpha1().Ignitions(key.DefaultNamespace).UpdateStatus(&cr)
+	_, err = r.k8sClient.G8sClient().CoreV1alpha1().Ignitions(cr.Namespace).UpdateStatus(&cr)
 	if err != nil {
 		return microerror.Mask(err)
 	}
