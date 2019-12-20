@@ -13,10 +13,11 @@ rules:
       - patch
       - watch
   - apiGroups:
-      - application.giantswarm.io
+      - core.giantswarm.io
     resources:
-      - apps/status
+      - ignitions/status
     verbs:
+      - get
       - create
       - patch
       - update
