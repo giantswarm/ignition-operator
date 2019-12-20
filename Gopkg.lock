@@ -94,7 +94,7 @@
 
 [[projects]]
   branch = "Add-ignition-type"
-  digest = "1:ac5df863ab51a697b0beb1d60ddab1a70a03eb9aaf78fc23e438583d7743a22f"
+  digest = "1:9008624f474aabc8013bb30bf8201e1647a3b743a68b89157989b4971df2927b"
   name = "github.com/giantswarm/apiextensions"
   packages = [
     "pkg/apis/application/v1alpha1",
@@ -113,7 +113,7 @@
     "pkg/clientset/versioned/typed/release/v1alpha1",
   ]
   pruneopts = "UT"
-  revision = "50112e4d8e885dd1c90764ec33c410599d5c16aa"
+  revision = "69e8f7b1dbd74c0b09f1ca0f13c47cf0d9ad063b"
 
 [[projects]]
   branch = "master"
@@ -1109,6 +1109,9 @@
     "github.com/shurcooL/vfsgen",
     "github.com/spf13/viper",
     "gopkg.in/yaml.v2",
+    "k8s.io/api/core/v1",
+    "k8s.io/apimachinery/pkg/api/errors",
+    "k8s.io/apimachinery/pkg/apis/meta/v1",
     "k8s.io/apimachinery/pkg/runtime",
     "k8s.io/apiserver/pkg/endpoints/request",
     "k8s.io/client-go/rest",
