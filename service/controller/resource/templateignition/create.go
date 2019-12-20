@@ -44,9 +44,9 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 		},
 	}
 
-	cm, err = r.k8sClient.K8sClient().CoreV1().ConfigMaps(key.DefaultNamespace).Update(cm)
+	actualCM, err := r.k8sClient.K8sClient().CoreV1().ConfigMaps(key.DefaultNamespace).Update(cm)
 	if apierrors.IsNotFound(err) {
-		cm, err = r.k8sClient.K8sClient().CoreV1().ConfigMaps(key.DefaultNamespace).Create(cm)
+		actualCM, err = r.k8sClient.K8sClient().CoreV1().ConfigMaps(key.DefaultNamespace).Create(cm)
 		if err != nil {
 			return microerror.Mask(err)
 		}
@@ -56,9 +56,9 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 	}
 
 	cr.Status.ConfigMap = v1alpha1.IgnitionStatusConfigMap{
-		Name:            cm.Name,
-		Namespace:       cm.Namespace,
-		ResourceVersion: cm.ResourceVersion,
+		Name:            actualCM.Name,
+		Namespace:       actualCM.Namespace,
+		ResourceVersion: actualCM.ResourceVersion,
 	}
 
 	_, err = r.k8sClient.G8sClient().CoreV1alpha1().Ignitions(key.DefaultNamespace).UpdateStatus(&cr)
