@@ -9,6 +9,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/giantswarm/ignition-operator/pkg/label"
+	"github.com/giantswarm/ignition-operator/pkg/project"
 	"github.com/giantswarm/ignition-operator/service/controller/controllercontext"
 	"github.com/giantswarm/ignition-operator/service/controller/key"
 )
@@ -35,8 +37,11 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      key.StatusConfigMapName(cr.Spec.ClusterID),
-			Namespace: key.DefaultNamespace,
+			Name: key.StatusConfigMapName(cr.Spec.ClusterID),
+			Labels: map[string]string{
+				"cluster":       cr.Spec.ClusterID,
+				label.ManagedBy: project.Name(),
+			},
 		},
 		Data: map[string]string{
 			"master": master["."],
