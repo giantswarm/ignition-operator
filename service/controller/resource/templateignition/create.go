@@ -9,6 +9,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/giantswarm/ignition-operator/pkg/label"
+	"github.com/giantswarm/ignition-operator/pkg/project"
 	"github.com/giantswarm/ignition-operator/service/controller/controllercontext"
 	"github.com/giantswarm/ignition-operator/service/controller/key"
 )
@@ -35,8 +37,11 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      key.StatusConfigMapName(cr.Spec.ClusterID),
-			Namespace: key.DefaultNamespace,
+			Name: key.StatusConfigMapName(cr.Spec.ClusterID),
+			Labels: map[string]string{
+				"cluster":       cr.Spec.ClusterID,
+				label.ManagedBy: project.Name(),
+			},
 		},
 		Data: map[string]string{
 			"master": master["."],
@@ -44,9 +49,9 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 		},
 	}
 
-	cm, err = r.k8sClient.K8sClient().CoreV1().ConfigMaps(key.DefaultNamespace).Update(cm)
+	actualCM, err := r.k8sClient.K8sClient().CoreV1().ConfigMaps(key.DefaultNamespace).Update(cm)
 	if apierrors.IsNotFound(err) {
-		cm, err = r.k8sClient.K8sClient().CoreV1().ConfigMaps(key.DefaultNamespace).Create(cm)
+		actualCM, err = r.k8sClient.K8sClient().CoreV1().ConfigMaps(key.DefaultNamespace).Create(cm)
 		if err != nil {
 			return microerror.Mask(err)
 		}
@@ -56,12 +61,12 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 	}
 
 	cr.Status.ConfigMap = v1alpha1.IgnitionStatusConfigMap{
-		Name:            cm.Name,
-		Namespace:       cm.Namespace,
-		ResourceVersion: cm.ResourceVersion,
+		Name:            actualCM.Name,
+		Namespace:       actualCM.Namespace,
+		ResourceVersion: actualCM.ResourceVersion,
 	}
 
-	_, err = r.k8sClient.G8sClient().CoreV1alpha1().Ignitions(key.DefaultNamespace).UpdateStatus(&cr)
+	_, err = r.k8sClient.G8sClient().CoreV1alpha1().Ignitions(cr.Namespace).UpdateStatus(&cr)
 	if err != nil {
 		return microerror.Mask(err)
 	}
