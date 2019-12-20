@@ -94,7 +94,7 @@
 
 [[projects]]
   branch = "Add-ignition-type"
-  digest = "1:e434281b75cb5aa37e2aa1fee51efa6fa7284321342b8078e6c7b886daeefd82"
+  digest = "1:ac5df863ab51a697b0beb1d60ddab1a70a03eb9aaf78fc23e438583d7743a22f"
   name = "github.com/giantswarm/apiextensions"
   packages = [
     "pkg/apis/application/v1alpha1",
@@ -113,7 +113,7 @@
     "pkg/clientset/versioned/typed/release/v1alpha1",
   ]
   pruneopts = "UT"
-  revision = "ba71fd970f7fc98ed353f9737c67f301ea789970"
+  revision = "50112e4d8e885dd1c90764ec33c410599d5c16aa"
 
 [[projects]]
   branch = "master"

@@ -3,6 +3,7 @@ package key
 import (
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -23,6 +24,10 @@ const (
 
 	MasterTemplatePath = "master_template.yaml"
 	WorkerTemplatePath = "worker_template.yaml"
+)
+
+const (
+	DefaultNamespace = "giantswarm"
 )
 
 func OperatorVersion(getter LabelsGetter) string {
@@ -66,6 +71,10 @@ func Render(values interface{}, filesdir string, b64 bool) (map[string]string, e
 	}
 
 	return files, nil
+}
+
+func StatusConfigMapName(clusterID string) string {
+	return fmt.Sprintf("ignition-operator-%s", clusterID)
 }
 
 func ToIgnition(v interface{}) (v1alpha1.Ignition, error) {

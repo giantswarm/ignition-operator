@@ -7,6 +7,7 @@ type ContextSpec struct {
 	DisableEncryptionAtREST bool
 	Docker                  ContextSpecDocker
 	Etcd                    ContextSpecEtcd
+	Extension               ContextSpecExtension
 	Ingress                 ContextSpecIngress
 	Kubernetes              ContextSpecKubernetes
 	// Defines the provider which should be rendered.
@@ -40,6 +41,54 @@ type ContextSpecEtcd struct {
 	Image  string
 	Port   int
 	Prefix string
+}
+
+type ContextSpecExtension struct {
+	Files []ContextSpecExtensionFile
+	Units []ContextSpecExtensionUnit
+	Users []ContextSpecExtensionUser
+}
+
+type ContextSpecExtensionFile struct {
+	Content  string
+	Metadata ContextSpecExtensionFileMetadata
+}
+
+type ContextSpecExtensionFileMetadata struct {
+	Compression bool
+	Owner       ContextSpecExtensionFileMetadataOwner
+	Path        string
+	Permissions int
+}
+
+type ContextSpecExtensionFileMetadataOwner struct {
+	Group ContextSpecExtensionFileMetadataOwnerGroup
+	User  ContextSpecExtensionFileMetadataOwnerUser
+}
+
+type ContextSpecExtensionFileMetadataOwnerUser struct {
+	ID   string
+	Name string
+}
+
+type ContextSpecExtensionFileMetadataOwnerGroup struct {
+	ID   string
+	Name string
+}
+
+type ContextSpecExtensionUnit struct {
+	Content  string
+	Metadata ContextSpecExtensionUnitMetadata
+}
+
+type ContextSpecExtensionUnitMetadata struct {
+	Enabled bool
+	Name    string
+}
+
+type ContextSpecExtensionUser struct {
+	Name      string
+	PublicKey string
 }
 
 type ContextSpecIngress struct {

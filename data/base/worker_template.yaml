@@ -10,17 +10,17 @@ passwd:
         - "docker"
       sshAuthorizedKeys:
         - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCuJvxy3FKGrfJ4XB5exEdKXiqqteXEPFzPtex6dC0lHyigtO7l+NXXbs9Lga2+Ifs0Tza92MRhg/FJ+6za3oULFo7+gDyt86DIkZkMFdnSv9+YxYe+g4zqakSV+bLVf2KP6krUGJb7t4Nb+gGH62AiUx+58Onxn5rvYC0/AXOYhkAiH8PydXTDJDPhSA/qWSWEeCQistpZEDFnaVi0e7uq/k3hWJ+v9Gz0qqChHKWWOYp3W6aiIE3G6gLOXNEBdWRrjK6xmrSmo9Toqh1G7iIV0Y6o9w5gIHJxf6+8X70DCuVDx9OLHmjjMyGnd+1c3yTFMUdugtvmeiGWE0E7ZjNSNIqWlnvYJ0E1XPBiyQ7nhitOtVvPC4kpRP7nOFiCK9n8Lr3z3p4v3GO0FU3/qvLX+ECOrYK316gtwSJMd+HIouCbaJaFGvT34peaq1uluOP/JE+rFOnszZFpCYgTY2b4lWjf2krkI/a/3NDJPnRpjoE3RjmbepkZeIdOKTCTH1xYZ3O8dWKRX8X4xORvKJO+oV2UdoZlFa/WJTmq23z4pCVm0UWDYR5C2b9fHwxh/xrPT7CQ0E+E9wmeOvR4wppDMseGQCL+rSzy2AYiQ3D8iQxk0r6T+9MyiRCfuY73p63gB3m37jMQSLHvm77MkRnYcBy61Qxk+y+ls2D0xJfqxw== giantswarm"
-{{ range $index, $user := .Cluster.Kubernetes.SSH.UserList }}
+{{- range $index, $user := .Spec.Extension.Users }}
     - name: {{ $user.Name }}
       shell: "/bin/bash"
       groups:
         - "sudo"
         - "docker"
-{{ if ne $user.PublicKey "" }}
+{{- if ne $user.PublicKey "" }}
       sshAuthorizedKeys:
         - "{{ $user.PublicKey }}"
-{{ end }}
-{{ end }}
+{{- end }}
+{{- end }}
 
 systemd:
   units:
@@ -28,50 +28,56 @@ systemd:
   - name: kubereserved.slice
     path: /etc/systemd/system/kubereserved.slice
     content: |
-      {{  index .Units "kubereserved.slice" | indent 6}}
+{{  index .Status.Units "kubereserved.slice" | indent 6}}
   # End - manual management for cgroup structure
+  {{range .Spec.Extension.Units}}
+  - name: {{.Metadata.Name}}
+    enabled: {{.Metadata.Enabled}}
+    contents: |
+{{.Content | indent 6 }}
+{{end}}
   - name: set-certs-group-owner-permission-giantswarm.service
     enabled: true
     contents: |
-      {{  index .Units "set-certs-group-owner-permission-giantswarm.service" | indent 6}}
+{{  index .Status.Units "set-certs-group-owner-permission-giantswarm.service" | indent 6}}
   - name: wait-for-domains.service
     enabled: true
     contents: |
-      {{  index .Units "wait-for-domains.service" | indent 6}}
+{{  index .Status.Units "wait-for-domains.service" | indent 6}}
   - name: os-hardeing.service
     enabled: true
     contents: |
-      {{  index .Units "os-hardeing.service" | indent 6}}
+{{  index .Status.Units "os-hardeing.service" | indent 6}}
   - name: k8s-setup-kubelet-config.service
     enabled: true
     contents: |
-      {{  index .Units "k8s-setup-kubelet-config.service" | indent 6}}
+{{  index .Status.Units "k8s-setup-kubelet-config.service" | indent 6}}
   - name: containerd.service
     enabled: true
     contents: |
     dropins:
       - name: 10-change-cgroup.conf
         contents: |
-          {{  index .Units "containerd.service" | indent 10}}
+{{  index .Status.Units "containerd.service" | indent 10}}
   - name: docker.service
     enabled: true
     contents: |
     dropins:
       - name: 10-giantswarm-extra-args.conf
         contents: |
-          {{  index .Units "10-giantswarm-extra-args.conf" | indent 10}}
+{{  index .Status.Units "10-giantswarm-extra-args.conf" | indent 10}}
   - name: k8s-setup-network-env.service
     enabled: true
     contents: |
-      {{  index .Units "k8s-setup-network-env.service" | indent 6}}
+ {{  index .Status.Units "k8s-setup-network-env.service" | indent 6}}
   - name: k8s-setup-download-hyperkube.service
     enabled: true
     contents: |
-      {{  index .Units "k8s-setup-download-hyperkube.service" | indent 6}}
+{{  index .Status.Units "k8s-setup-download-hyperkube.service" | indent 6}}
   - name: k8s-kubelet.service
     enabled: true
     contents: |
-      {{  index .Units "k8s-kubelet.service" | indent 6}}
+{{  index .Status.Units "worker-k8s-kubelet.service" | indent 6}}
   - name: etcd2.service
     enabled: false
     mask: true
@@ -100,69 +106,69 @@ storage:
       filesystem: root
       mode: 0644
       contents:
-        source: "data:text/plain;base64,{{ index .Files "conf/trusted-user-ca-keys.pem" }}"
+        source: "data:text/plain;base64,{{ index .Status.Files "conf/trusted-user-ca-keys.pem" }}"
 
     - path: /etc/kubernetes/config/kubelet.yaml.tmpl
       filesystem: root
       mode: 0644
       contents:
-        source: "data:text/plain;charset=utf-8;base64,{{  index .Files "config/kubelet-worker.yaml.tmpl" }}"
+        source: "data:text/plain;charset=utf-8;base64,{{  index .Status.Files "config/kubelet-worker.yaml.tmpl" }}"
 
     - path: /etc/kubernetes/kubeconfig/kubelet.yaml
       filesystem: root
       mode: 0644
       contents:
-        source: "data:text/plain;charset=utf-8;base64,{{  index .Files "kubeconfig/kubelet-worker.yaml" }}"
+        source: "data:text/plain;charset=utf-8;base64,{{  index .Status.Files "kubeconfig/kubelet-worker.yaml" }}"
 
     - path: /etc/kubernetes/config/proxy-config.yml
       filesystem: root
       mode: 0644
       contents:
-        source: "data:text/plain;charset=utf-8;base64,{{  index .Files "config/kube-proxy.yaml" }}"
+        source: "data:text/plain;charset=utf-8;base64,{{  index .Status.Files "config/kube-proxy.yaml" }}"
 
     - path: /etc/kubernetes/config/proxy-kubeconfig.yaml
       filesystem: root
       mode: 0644
       contents:
-        source: "data:text/plain;charset=utf-8;base64,{{  index .Files "kubeconfig/kube-proxy-worker.yaml" }}"
+        source: "data:text/plain;charset=utf-8;base64,{{  index .Status.Files "kubeconfig/kube-proxy-worker.yaml" }}"
 
     - path: /etc/kubernetes/kubeconfig/kube-proxy.yaml
       filesystem: root
       mode: 0644
       contents:
-        source: "data:text/plain;charset=utf-8;base64,{{  index .Files "kubeconfig/kube-proxy-worker.yaml" }}"
+        source: "data:text/plain;charset=utf-8;base64,{{  index .Status.Files "kubeconfig/kube-proxy-worker.yaml" }}"
 
     - path: /opt/wait-for-domains
       filesystem: root
       mode: 0544
       contents:
-        source: "data:text/plain;charset=utf-8;base64,{{  index .Files "conf/wait-for-domains" }}"
+        source: "data:text/plain;charset=utf-8;base64,{{  index .Status.Files "conf/wait-for-domains" }}"
 
     - path: /etc/ssh/sshd_config
       filesystem: root
       mode: 0644
       contents:
-        source: "data:text/plain;charset=utf-8;base64,{{  index .Files "conf/sshd_config" }}"
+        source: "data:text/plain;charset=utf-8;base64,{{  index .Status.Files "conf/sshd_config" }}"
 
     - path: /etc/sysctl.d/hardening.conf
       filesystem: root
       mode: 0600
       contents:
-        source: "data:text/plain;charset=utf-8;base64,{{  index .Files "conf/hardening.conf" }}"
+        source: "data:text/plain;charset=utf-8;base64,{{  index .Status.Files "conf/hardening.conf" }}"
 
     - path: /etc/audit/rules.d/10-docker.rules
       filesystem: root
       mode: 0600
       contents:
-        source: "data:text/plain;charset=utf-8;base64,{{  index .Files "conf/10-docker.rules" }}"
+        source: "data:text/plain;charset=utf-8;base64,{{  index .Status.Files "conf/10-docker.rules" }}"
 
     - path: /etc/modules-load.d/ip_vs.conf
       filesystem: root
       mode: 0600
       contents:
-        source: "data:text/plain;charset=utf-8;base64,{{  index .Files "conf/ip_vs.conf" }}"
+        source: "data:text/plain;charset=utf-8;base64,{{  index .Status.Files "conf/ip_vs.conf" }}"
 
-    {{ range .Extension.Files -}}
+   {{ range .Spec.Extension.Files -}}
     - path: {{ .Metadata.Path }}
       filesystem: root
       user:
@@ -180,7 +186,7 @@ storage:
       mode: {{printf "%#o" .Metadata.Permissions}}
       contents:
         source: "data:text/plain;charset=utf-8;base64,{{ .Content }}"
-        {{ if .Metadata.Compression }}
+        {{- if .Metadata.Compression }}
         compression: gzip
-        {{end}}
-    {{ end -}}
+        {{ end }}
+    {{ end }}

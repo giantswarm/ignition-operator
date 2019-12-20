@@ -10,6 +10,18 @@ passwd:
         - "docker"
       sshAuthorizedKeys:
         - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCuJvxy3FKGrfJ4XB5exEdKXiqqteXEPFzPtex6dC0lHyigtO7l+NXXbs9Lga2+Ifs0Tza92MRhg/FJ+6za3oULFo7+gDyt86DIkZkMFdnSv9+YxYe+g4zqakSV+bLVf2KP6krUGJb7t4Nb+gGH62AiUx+58Onxn5rvYC0/AXOYhkAiH8PydXTDJDPhSA/qWSWEeCQistpZEDFnaVi0e7uq/k3hWJ+v9Gz0qqChHKWWOYp3W6aiIE3G6gLOXNEBdWRrjK6xmrSmo9Toqh1G7iIV0Y6o9w5gIHJxf6+8X70DCuVDx9OLHmjjMyGnd+1c3yTFMUdugtvmeiGWE0E7ZjNSNIqWlnvYJ0E1XPBiyQ7nhitOtVvPC4kpRP7nOFiCK9n8Lr3z3p4v3GO0FU3/qvLX+ECOrYK316gtwSJMd+HIouCbaJaFGvT34peaq1uluOP/JE+rFOnszZFpCYgTY2b4lWjf2krkI/a/3NDJPnRpjoE3RjmbepkZeIdOKTCTH1xYZ3O8dWKRX8X4xORvKJO+oV2UdoZlFa/WJTmq23z4pCVm0UWDYR5C2b9fHwxh/xrPT7CQ0E+E9wmeOvR4wppDMseGQCL+rSzy2AYiQ3D8iQxk0r6T+9MyiRCfuY73p63gB3m37jMQSLHvm77MkRnYcBy61Qxk+y+ls2D0xJfqxw== giantswarm"
+    - name: SomeUser
+      shell: "/bin/bash"
+      groups:
+        - "sudo"
+        - "docker"
+      sshAuthorizedKeys:
+        - "SomePubKey"
+    - name: UserWithoutPubKey
+      shell: "/bin/bash"
+      groups:
+        - "sudo"
+        - "docker"
 
 systemd:
   units:
@@ -26,6 +38,31 @@ systemd:
       After=-.slice
       
   # End - manual management for cgroup structure
+  
+  - name: SomeUnit
+    enabled: true
+    contents: |
+      [Unit]
+      Description=Some sample Unit
+      After=network.target
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/some-debug-unit
+      [Install]
+      WantedBy=multi-user.target
+
+  - name: SomeOtherUnit
+    enabled: false
+    contents: |
+      [Unit]
+      Description=Some other sample Unit
+      After=network.target
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/some-debug-unit
+      [Install]
+      WantedBy=multi-user.target
+
   - name: audit-rules.service
     enabled: true
     dropins:
@@ -564,3 +601,25 @@ storage:
       mode: 0444
       contents:
         source: "data:text/plain;charset=utf-8;base64,YWxpYXMgZXRjZGN0bD0iRVRDRENUTF9BUEk9MyBcCiAgICBFVENEQ1RMX0VORFBPSU5UUz1odHRwczovL0V0Y2REb21haW46MTIzNCBcCiAgICBFVENEQ1RMX0NBQ0VSVD0vZXRjL2t1YmVybmV0ZXMvc3NsL2V0Y2QvY2xpZW50LWNhLnBlbSBcCiAgICBFVENEQ1RMX0NFUlQ9L2V0Yy9rdWJlcm5ldGVzL3NzbC9ldGNkL2NsaWVudC1jcnQucGVtIFwKICAgIEVUQ0RDVExfS0VZPS9ldGMva3ViZXJuZXRlcy9zc2wvZXRjZC9jbGllbnQta2V5LnBlbSBcCiAgICBldGNkY3RsIgo="
+
+   - path: some/File/Path
+      filesystem: root
+      user:
+        id: someUserID
+      group:
+        id: someGroupID
+      mode: 01274
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,someFileContent"
+        compression: gzip
+        
+    - path: some/Other/File/Path
+      filesystem: root
+      user:
+        id: someOtherUserID
+      group:
+        id: someOtherGroupID
+      mode: 01274
+      contents:
+        source: "data:text/plain;charset=utf-8;base64,someOtherFileContent"
+    

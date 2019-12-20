@@ -29,6 +29,85 @@ func DefaultCC() controllercontext.Context {
 				Port:   1234,
 				Prefix: "EtcdPrefix",
 			},
+			Extension: controllercontext.ContextSpecExtension{
+				Files: []controllercontext.ContextSpecExtensionFile{
+					{
+						Content: "someFileContent",
+						Metadata: controllercontext.ContextSpecExtensionFileMetadata{
+							Compression: true,
+							Owner: controllercontext.ContextSpecExtensionFileMetadataOwner{
+								Group: controllercontext.ContextSpecExtensionFileMetadataOwnerGroup{
+									ID:   "someGroupID",
+									Name: "someGroupName",
+								},
+								User: controllercontext.ContextSpecExtensionFileMetadataOwnerUser{
+									ID:   "someUserID",
+									Name: "someUSerName",
+								},
+							},
+							Path:        "some/File/Path",
+							Permissions: 700,
+						},
+					},
+					{
+						Content: "someOtherFileContent",
+						Metadata: controllercontext.ContextSpecExtensionFileMetadata{
+							Compression: false,
+							Owner: controllercontext.ContextSpecExtensionFileMetadataOwner{
+								Group: controllercontext.ContextSpecExtensionFileMetadataOwnerGroup{
+									ID:   "someOtherGroupID",
+									Name: "someOtherGroupName",
+								},
+								User: controllercontext.ContextSpecExtensionFileMetadataOwnerUser{
+									ID:   "someOtherUserID",
+									Name: "someOtherUserName",
+								},
+							},
+							Path:        "some/Other/File/Path",
+							Permissions: 700,
+						},
+					},
+				},
+				Units: []controllercontext.ContextSpecExtensionUnit{
+					{
+						Content: `[Unit]
+Description=Some sample Unit
+After=network.target
+[Service]
+Type=oneshot
+ExecStart=/opt/some-debug-unit
+[Install]
+WantedBy=multi-user.target`,
+						Metadata: controllercontext.ContextSpecExtensionUnitMetadata{
+							Enabled: true,
+							Name:    "SomeUnit",
+						},
+					},
+					{
+						Content: `[Unit]
+Description=Some other sample Unit
+After=network.target
+[Service]
+Type=oneshot
+ExecStart=/opt/some-debug-unit
+[Install]
+WantedBy=multi-user.target`,
+						Metadata: controllercontext.ContextSpecExtensionUnitMetadata{
+							Enabled: false,
+							Name:    "SomeOtherUnit",
+						},
+					},
+				},
+				Users: []controllercontext.ContextSpecExtensionUser{
+					{
+						Name:      "SomeUser",
+						PublicKey: "SomePubKey",
+					},
+					{
+						Name: "UserWithoutPubKey",
+					},
+				},
+			},
 			Ingress: controllercontext.ContextSpecIngress{
 				Disable: false,
 			},

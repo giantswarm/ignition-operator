@@ -66,6 +66,26 @@ func Test_Controller_Key_Render(t *testing.T) {
 			path:  MasterTemplatePath,
 			print: true,
 		},
+		{
+			name:   "case 3: worker render",
+			base64: false,
+			cc: func() controllercontext.Context {
+				cc := unittest.DefaultCC()
+				files, err := Render(cc, FilePath, true)
+				if err != nil {
+					panic(err)
+				}
+				units, err := Render(cc, UnitPath, false)
+				if err != nil {
+					panic(err)
+				}
+				cc.Status.Files = files
+				cc.Status.Units = units
+				return cc
+			}(),
+			path:  WorkerTemplatePath,
+			print: true,
+		},
 	}
 
 	for i, tc := range testCases {
