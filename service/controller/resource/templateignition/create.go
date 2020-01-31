@@ -35,7 +35,7 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 		return microerror.Mask(err)
 	}
 
-	cm := &corev1.ConfigMap{
+	s := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: key.StatusConfigMapName(cr.Spec.ClusterID),
 			Labels: map[string]string{
@@ -43,27 +43,26 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 				label.ManagedBy: project.Name(),
 			},
 		},
-		Data: map[string]string{
+		StringData: map[string]string{ // Data?
 			"master": master["."],
 			"worker": worker["."],
 		},
 	}
 
-	actualCM, err := r.k8sClient.K8sClient().CoreV1().ConfigMaps(key.DefaultNamespace).Update(cm)
+	actualSecret, err := r.k8sClient.K8sClient().CoreV1().Secrets(key.DefaultNamespace).Update(s)
 	if apierrors.IsNotFound(err) {
-		actualCM, err = r.k8sClient.K8sClient().CoreV1().ConfigMaps(key.DefaultNamespace).Create(cm)
+		actualSecret, err = r.k8sClient.K8sClient().CoreV1().Secrets(key.DefaultNamespace).Create(s)
 		if err != nil {
 			return microerror.Mask(err)
 		}
-
 	} else if err != nil {
 		return microerror.Mask(err)
 	}
 
-	cr.Status.ConfigMap = v1alpha1.IgnitionStatusConfigMap{
-		Name:            actualCM.Name,
-		Namespace:       actualCM.Namespace,
-		ResourceVersion: actualCM.ResourceVersion,
+	cr.Status.Secret = v1alpha1.IgnitionStatusSecret{
+		Name:            actualSecret.Name,
+		Namespace:       actualSecret.Namespace,
+		ResourceVersion: actualSecret.ResourceVersion,
 	}
 
 	_, err = r.k8sClient.G8sClient().CoreV1alpha1().Ignitions(cr.Namespace).UpdateStatus(&cr)
