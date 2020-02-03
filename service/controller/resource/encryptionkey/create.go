@@ -86,7 +86,7 @@ func crToCCSpec(cr v1alpha1.Ignition) controllercontext.ContextSpec {
 				MTU:     cr.Spec.Calico.MTU,
 				Subnet:  cr.Spec.Calico.Subnet,
 			},
-			DisableEncryptionAtREST: cr.Spec.DisableEncryptionAtREST,
+			DisableEncryptionAtRest: cr.Spec.DisableEncryptionAtRest,
 			Docker: controllercontext.ContextSpecDocker{
 				Daemon: controllercontext.ContextSpecDockerDaemon{
 					CIDR: cr.Spec.Docker.Daemon.CIDR,

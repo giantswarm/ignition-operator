@@ -4,7 +4,7 @@ type ContextSpec struct {
 	APIServerEncryptionKey  string
 	BaseDomain              string
 	Calico                  ContextSpecCalico
-	DisableEncryptionAtREST bool
+	DisableEncryptionAtRest bool
 	Docker                  ContextSpecDocker
 	Etcd                    ContextSpecEtcd
 	Extension               ContextSpecExtension
