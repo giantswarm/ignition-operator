@@ -276,7 +276,7 @@ storage:
       contents:
         source: "data:text/plain;charset=utf-8;base64,{{  index .Status.Files "kubeconfig/scheduler.yaml" }}"
 
-    {{ if not .Spec.DisableEncryptionAtREST -}}
+    {{ if not .Spec.DisableEncryptionAtRest -}}
     - path: /etc/kubernetes/encryption/k8s-encryption-config.yaml
       filesystem: root
       mode: 0644
