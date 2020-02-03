@@ -28,7 +28,7 @@ required = [
 
 
 [[override]]
-  branch = "add-ignition-secret-type"
+  branch = "add-ignition-type"
   name = "github.com/giantswarm/apiextensions"
 
 [[constraint]]
