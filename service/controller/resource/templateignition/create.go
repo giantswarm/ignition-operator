@@ -25,27 +25,31 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 		return microerror.Mask(err)
 	}
 
-	master, err := key.Render(cc, key.MasterTemplatePath, false)
-	if err != nil {
-		return microerror.Mask(err)
-	}
-
-	worker, err := key.Render(cc, key.WorkerTemplatePath, false)
-	if err != nil {
-		return microerror.Mask(err)
+	var template map[string]string
+	{
+		if cr.Spec.IsMaster {
+			template, err = key.Render(cc, key.MasterTemplatePath, false)
+		} else {
+			template, err = key.Render(cc, key.WorkerTemplatePath, false)
+		}
+		if err != nil {
+			return microerror.Mask(err)
+		}
 	}
 
 	s := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: key.StatusConfigMapName(cr.Spec.ClusterID),
 			Labels: map[string]string{
-				"cluster":       cr.Spec.ClusterID,
-				label.ManagedBy: project.Name(),
+				"cluster.x-k8s.io/cluster-name": cr.Spec.ClusterID,
+				label.ManagedBy:                 project.Name(),
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(&cr, cr.GroupVersionKind()),
 			},
 		},
-		StringData: map[string]string{ // Data?
-			"master": master["."],
-			"worker": worker["."],
+		StringData: map[string]string{
+			"value": template["."],
 		},
 	}
 
@@ -59,7 +63,7 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 		return microerror.Mask(err)
 	}
 
-	cr.Status.Secret = v1alpha1.IgnitionStatusSecret{
+	cr.Status.DataSecret = v1alpha1.IgnitionStatusSecret{
 		Name:            actualSecret.Name,
 		Namespace:       actualSecret.Namespace,
 		ResourceVersion: actualSecret.ResourceVersion,
