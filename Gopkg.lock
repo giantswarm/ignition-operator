@@ -71,7 +71,7 @@
   branch = "add-ignition-secret-type"
   name = "github.com/giantswarm/apiextensions"
   packages = ["pkg/apis/application/v1alpha1","pkg/apis/core/v1alpha1","pkg/apis/example/v1alpha1","pkg/apis/infrastructure/v1alpha2","pkg/apis/provider/v1alpha1","pkg/apis/release/v1alpha1","pkg/clientset/versioned","pkg/clientset/versioned/scheme","pkg/clientset/versioned/typed/application/v1alpha1","pkg/clientset/versioned/typed/core/v1alpha1","pkg/clientset/versioned/typed/example/v1alpha1","pkg/clientset/versioned/typed/infrastructure/v1alpha2","pkg/clientset/versioned/typed/provider/v1alpha1","pkg/clientset/versioned/typed/release/v1alpha1"]
-  revision = "86220b61fa639b587182b1e0c782dc4eb3550494"
+  revision = "69a866264d9d2f1e6a848adeb71f8d6d7a53b17f"
 
 [[projects]]
   branch = "master"
