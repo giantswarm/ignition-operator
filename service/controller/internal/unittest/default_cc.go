@@ -14,7 +14,7 @@ func DefaultCC() controllercontext.Context {
 				MTU:     "CalicoMTU",
 				Subnet:  "CalicoSubnet",
 			},
-			DisableEncryptionAtREST: false,
+			DisableEncryptionAtRest: false,
 			Docker: controllercontext.ContextSpecDocker{
 				Daemon: controllercontext.ContextSpecDockerDaemon{
 					CIDR: "DockerDaemonCIDR",
