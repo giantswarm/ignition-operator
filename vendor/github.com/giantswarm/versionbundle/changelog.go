@@ -2,6 +2,7 @@ package versionbundle
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/giantswarm/microerror"
 )
@@ -9,23 +10,17 @@ import (
 type kind string
 
 const (
-	// KindAdded being used in a changelog describes an authority's component got
-	// added.
+	// KindAdded is used in changelogs for new features.
 	KindAdded kind = "added"
-	// KindChanged being used in a changelog describes an authority's component got
-	// changed.
+	// KindChanged is used in changelogs for changes in existing functionality.
 	KindChanged kind = "changed"
-	// KindDeprecated being used in a changelog describes an authority's component got
-	// deprecated.
+	// KindDeprecated is used in a changelogs for soon-to-be removed features.
 	KindDeprecated kind = "deprecated"
-	// KindFixed being used in a changelog describes an authority's component got
-	// fixed.
+	// KindFixed is used in changelogs for any bug fixes.
 	KindFixed kind = "fixed"
-	// KindRemoved being used in a changelog describes an authority's component got
-	// removed.
+	// KindRemoved is used in changelogs for now removed features.
 	KindRemoved kind = "removed"
-	// KindSecurity being used in a changelog describes an authority's component got
-	// adapted for security reasons.
+	// KindSecurity is used in chnagelogs in case of vulnerabilities.
 	KindSecurity kind = "security"
 )
 
@@ -103,4 +98,14 @@ func CopyChangelogs(changelogs []Changelog) []Changelog {
 	}
 
 	return copy
+}
+
+func NewKind(kindType string) (kind, error) {
+	converted := kind(strings.ToLower(kindType))
+	for _, k := range validKinds {
+		if converted == k {
+			return converted, nil
+		}
+	}
+	return kind(""), microerror.Maskf(executionFailedError, "kind must be one of %#v", validKinds)
 }

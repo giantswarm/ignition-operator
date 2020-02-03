@@ -83,6 +83,7 @@ type IgnitionSpec struct {
 	Etcd                    IgnitionSpecEtcd       `json:"etcd" yaml:"etcd"`
 	Extension               IgnitionSpecExtension  `json:"extension" yaml:"extension"`
 	Ingress                 IgnitionSpecIngress    `json:"ingress" yaml:"ingress"`
+	IsMaster                bool                   `json:"ismaster" yaml:"ismaster"`
 	Kubernetes              IgnitionSpecKubernetes `json:"kubernetes" yaml:"kubernetes"`
 	// Defines the provider which should be rendered.
 	Provider string               `json:"provider" yaml:"provider"`
@@ -201,7 +202,10 @@ type IgnitionSpecSSO struct {
 
 // IgnitionStatus holds the rendering result.
 type IgnitionStatus struct {
-	Secret IgnitionStatusSecret `json:"template" yaml:"template"`
+	DataSecret     IgnitionStatusSecret `json:"dataSecretName" yaml:"dataSecretName"`
+	FailureReason  string               `json:"failureReason" yaml:"failureReason"`
+	FailureMessage string               `json:"failureMessage" yaml:"failureMessage"`
+	Ready          bool                 `json:"ready" yaml:"ready"`
 }
 
 type IgnitionStatusSecret struct {

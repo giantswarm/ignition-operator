@@ -71,7 +71,7 @@
   branch = "add-ignition-secret-type"
   name = "github.com/giantswarm/apiextensions"
   packages = ["pkg/apis/application/v1alpha1","pkg/apis/core/v1alpha1","pkg/apis/example/v1alpha1","pkg/apis/infrastructure/v1alpha2","pkg/apis/provider/v1alpha1","pkg/apis/release/v1alpha1","pkg/clientset/versioned","pkg/clientset/versioned/scheme","pkg/clientset/versioned/typed/application/v1alpha1","pkg/clientset/versioned/typed/core/v1alpha1","pkg/clientset/versioned/typed/example/v1alpha1","pkg/clientset/versioned/typed/infrastructure/v1alpha2","pkg/clientset/versioned/typed/provider/v1alpha1","pkg/clientset/versioned/typed/release/v1alpha1"]
-  revision = "1f5e091cfae8b08addb77aeb7cd3ca354e277717"
+  revision = "86220b61fa639b587182b1e0c782dc4eb3550494"
 
 [[projects]]
   branch = "master"
@@ -124,7 +124,7 @@
   branch = "master"
   name = "github.com/giantswarm/versionbundle"
   packages = ["."]
-  revision = "460177a461bd8069a25d3628aad821052410fd9b"
+  revision = "8c3879f2b9e96ab2a89b90a96b123394d08d2f6d"
 
 [[projects]]
   name = "github.com/go-kit/kit"
@@ -394,7 +394,7 @@
   branch = "master"
   name = "golang.org/x/net"
   packages = ["context","context/ctxhttp","http/httpguts","http2","http2/hpack","idna","publicsuffix"]
-  revision = "6afb5195e5aab057fda82e27171243402346b0ad"
+  revision = "16171245cfb220d5317888b716d69c1fb4e7992b"
 
 [[projects]]
   branch = "master"
@@ -412,7 +412,7 @@
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix","windows"]
-  revision = "9fbb57f87de9ccfe3a99d4e3270ce8a926ebba4f"
+  revision = "d101bd2416d505c0448a6ce8a282482678040a89"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -460,8 +460,8 @@
 [[projects]]
   name = "gopkg.in/ini.v1"
   packages = ["."]
-  revision = "94291fffe2b14f4632ec0e67c1bfecfc1287a168"
-  version = "v1.51.1"
+  revision = "32cf4f7e9c77f151e18b53067b55549b4d1d411d"
+  version = "v1.52.0"
 
 [[projects]]
   name = "gopkg.in/resty.v1"
