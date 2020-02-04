@@ -73,8 +73,8 @@ func Render(values interface{}, filesdir string, b64 bool) (map[string]string, e
 	return files, nil
 }
 
-func StatusConfigMapName(clusterID string) string {
-	return fmt.Sprintf("ignition-operator-%s", clusterID)
+func StatusSecretName(clusterID string, ignitionName string) string {
+	return fmt.Sprintf("ignition-%s-%s", clusterID, ignitionName)
 }
 
 func ToIgnition(v interface{}) (v1alpha1.Ignition, error) {
