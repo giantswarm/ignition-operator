@@ -39,7 +39,7 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 
 	s := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: key.StatusConfigMapName(cr.Spec.ClusterID),
+			Name: key.StatusSecretName(cr.Spec.ClusterID, cr.GetName()),
 			Labels: map[string]string{
 				"cluster.x-k8s.io/cluster-name": cr.Spec.ClusterID,
 				label.ManagedBy:                 project.Name(),
@@ -53,9 +53,9 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 		},
 	}
 
-	actualSecret, err := r.k8sClient.K8sClient().CoreV1().Secrets(key.DefaultNamespace).Update(s)
+	actualSecret, err := r.k8sClient.K8sClient().CoreV1().Secrets(cr.GetNamespace()).Update(s)
 	if apierrors.IsNotFound(err) {
-		actualSecret, err = r.k8sClient.K8sClient().CoreV1().Secrets(key.DefaultNamespace).Create(s)
+		actualSecret, err = r.k8sClient.K8sClient().CoreV1().Secrets(cr.GetNamespace()).Create(s)
 		if err != nil {
 			return microerror.Mask(err)
 		}
