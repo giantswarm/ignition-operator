@@ -4,9 +4,10 @@ import (
 	"context"
 
 	"github.com/giantswarm/apiextensions/pkg/apis/core/v1alpha1"
+	"github.com/giantswarm/microerror"
+
 	"github.com/giantswarm/ignition-operator/service/controller/controllercontext"
 	"github.com/giantswarm/ignition-operator/service/controller/key"
-	"github.com/giantswarm/microerror"
 )
 
 func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {

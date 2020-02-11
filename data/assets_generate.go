@@ -5,8 +5,9 @@ package main
 import (
 	"log"
 
-	"github.com/giantswarm/ignition-operator/data"
 	"github.com/shurcooL/vfsgen"
+
+	"github.com/giantswarm/ignition-operator/data"
 )
 
 func main() {
