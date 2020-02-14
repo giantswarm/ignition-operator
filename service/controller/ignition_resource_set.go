@@ -28,14 +28,14 @@ type ignitionResourceSetConfig struct {
 func newIgnitionResourceSet(config ignitionResourceSetConfig) (*controller.ResourceSet, error) {
 	var err error
 
-	var encryptionkeyResource resource.Interface
+	var contextspecResource resource.Interface
 	{
 		c := contextspec.Config{
 			K8sClient: config.K8sClient,
 			Logger:    config.Logger,
 		}
 
-		encryptionkeyResource, err = contextspec.New(c)
+		contextspecResource, err = contextspec.New(c)
 		if err != nil {
 			return nil, microerror.Mask(err)
 		}
@@ -80,7 +80,7 @@ func newIgnitionResourceSet(config ignitionResourceSetConfig) (*controller.Resou
 	}
 
 	resources := []resource.Interface{
-		encryptionkeyResource,
+		contextspecResource,
 		templatefilesResource,
 		templateunitsResource,
 		templateignitionResource,
