@@ -38,6 +38,7 @@ type ContextSpecDockerNetworkSetup struct {
 
 type ContextSpecEtcd struct {
 	Domain string
+	Image  string
 	Port   int
 	Prefix string
 }
@@ -99,6 +100,7 @@ type ContextSpecKubernetes struct {
 	DNS     ContextSpecKubernetesDNS
 	Domain  string
 	Kubelet ContextSpecKubernetesKubelet
+	Image   string
 	IPRange string
 }
 
