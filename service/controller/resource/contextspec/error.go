@@ -1,4 +1,4 @@
-package encryptionkey
+package contextspec
 
 import (
 	"github.com/giantswarm/microerror"

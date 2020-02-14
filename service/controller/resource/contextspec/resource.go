@@ -1,4 +1,4 @@
-package encryptionkey
+package contextspec
 
 import (
 	"github.com/giantswarm/k8sclient"
@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	Name = "encryptionkey"
+	Name = "contextspec"
 )
 
 type Config struct {
