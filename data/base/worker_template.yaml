@@ -44,10 +44,10 @@ systemd:
     enabled: true
     contents: |
 {{  index .Status.Units "wait-for-domains.service" | indent 6}}
-  - name: os-hardeing.service
+  - name: os-hardening.service
     enabled: true
     contents: |
-{{  index .Status.Units "os-hardeing.service" | indent 6}}
+{{  index .Status.Units "os-hardening.service" | indent 6}}
   - name: k8s-setup-kubelet-config.service
     enabled: true
     contents: |

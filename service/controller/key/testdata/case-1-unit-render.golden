@@ -220,7 +220,7 @@ master-k8s-kubelet.service: |
     --v=2
   [Install]
   WantedBy=multi-user.target
-os-hardeing.service: |
+os-hardening.service: |
   [Unit]
   Description=Apply os hardening
   [Service]
