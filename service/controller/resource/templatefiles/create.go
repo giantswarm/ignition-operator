@@ -9,10 +9,6 @@ import (
 	"github.com/giantswarm/ignition-operator/service/controller/key"
 )
 
-const (
-	filesdir = "/files"
-)
-
 func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 	cc, err := controllercontext.FromContext(ctx)
 	if err != nil {
