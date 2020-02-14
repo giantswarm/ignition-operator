@@ -4,3 +4,6 @@
 
 It templates ignition.
 
+## Code generation
+
+After modifying files in `data/base/`, you must regenerate the `assets_vfsdata.go` file using `go generate data/assets_generate.go`.
