@@ -2,6 +2,8 @@ package templateignition
 
 import (
 	"context"
+	"crypto/sha512"
+	"encoding/hex"
 
 	"github.com/giantswarm/apiextensions/pkg/apis/core/v1alpha1"
 	"github.com/giantswarm/microerror"
@@ -25,16 +27,17 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 		return microerror.Mask(err)
 	}
 
-	var template map[string]string
+	var renderedIgnition string
 	{
+		templatePath := key.WorkerTemplatePath
 		if cr.Spec.IsMaster {
-			template, err = key.Render(cc, key.MasterTemplatePath, false)
-		} else {
-			template, err = key.Render(cc, key.WorkerTemplatePath, false)
+			templatePath = key.MasterTemplatePath
 		}
+		result, err := key.Render(cc, templatePath, false)
 		if err != nil {
 			return microerror.Mask(err)
 		}
+		renderedIgnition = result["."]
 	}
 
 	s := &corev1.Secret{
@@ -49,7 +52,7 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 			},
 		},
 		StringData: map[string]string{
-			"value": template["."],
+			"value": renderedIgnition,
 		},
 	}
 
@@ -63,6 +66,9 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 		return microerror.Mask(err)
 	}
 
+	cr.Status.Verification.Hash = calculateHash([]byte(renderedIgnition))
+	cr.Status.Verification.Algorithm = "sha512"
+	cr.Status.Ready = true
 	cr.Status.DataSecret = v1alpha1.IgnitionStatusSecret{
 		Name:            actualSecret.Name,
 		Namespace:       actualSecret.Namespace,
@@ -75,4 +81,14 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 	}
 
 	return nil
+}
+
+func calculateHash(data []byte) string {
+	rawSum := sha512.Sum512(data)
+	sum := rawSum[:]
+
+	encodedSum := make([]byte, hex.EncodedLen(len(sum)))
+	hex.Encode(encodedSum, sum)
+
+	return string(encodedSum)
 }
