@@ -122,6 +122,13 @@ func crToCCSpec(cr v1alpha1.Ignition) controllercontext.ContextSpec {
 					Domain: cr.Spec.Kubernetes.Kubelet.Domain,
 				},
 				IPRange: cr.Spec.Kubernetes.IPRange,
+				OIDC: controllercontext.ContextSpecOIDC{
+					Enabled:       cr.Spec.Kubernetes.OIDC.Enabled,
+					ClientID:      cr.Spec.Kubernetes.OIDC.ClientID,
+					IssuerURL:     cr.Spec.Kubernetes.OIDC.IssuerURL,
+					UsernameClaim: cr.Spec.Kubernetes.OIDC.UsernameClaim,
+					GroupsClaim:   cr.Spec.Kubernetes.OIDC.GroupsClaim,
+				},
 			},
 			Provider: cr.Spec.Provider,
 			Registry: controllercontext.ContextSpecRegistry{

@@ -1767,7 +1767,7 @@ manifests/k8s-api-healthz.yaml: |
     - hostPath:
         path: /etc/kubernetes/ssl
       name: ssl-certs-kubernetes
-manifests/k8s-api-server.yaml: |-
+manifests/k8s-api-server.yaml: |
   apiVersion: v1
   kind: Pod
   metadata:
@@ -1805,7 +1805,86 @@ manifests/k8s-api-server.yaml: |-
       - --authorization-mode=RBAC
       - --feature-gates=TTLAfterFinished=true
       - --enable-admission-plugins=NamespaceLifecycle,LimitRanger,ServiceAccount,ResourceQuota,DefaultStorageClass,PersistentVolumeClaimResize,PodSecurityPolicy,Priority,DefaultTolerationSeconds,MutatingAdmissionWebhook,ValidatingAdmissionWebhook
-      - --cloud-provider=
+      - --cloud-provider=cloudProvider
+      - --service-cluster-ip-range=K8sIPRange
+      - --etcd-servers=https://127.0.0.1:2379
+      - --etcd-cafile=/etc/kubernetes/ssl/etcd/server-ca.pem
+      - --etcd-certfile=/etc/kubernetes/ssl/etcd/server-crt.pem
+      - --etcd-keyfile=/etc/kubernetes/ssl/etcd/server-key.pem
+      - --advertise-address=$(HOST_IP)
+      - --runtime-config=api/all=true,scheduling.k8s.io/v1alpha1=true
+      - --logtostderr=true
+      - --tls-cert-file=/etc/kubernetes/ssl/apiserver-crt.pem
+      - --tls-private-key-file=/etc/kubernetes/ssl/apiserver-key.pem
+      - --client-ca-file=/etc/kubernetes/ssl/apiserver-ca.pem
+      - --service-account-key-file=/etc/kubernetes/ssl/service-account-key.pem
+      - --audit-log-path=/var/log/apiserver/audit.log
+      - --audit-log-maxage=30
+      - --audit-log-maxbackup=30
+      - --audit-log-maxsize=100
+      - --audit-policy-file=/etc/kubernetes/policies/audit-policy.yaml
+      - --encryption-provider-config=/etc/kubernetes/encryption/k8s-encryption-config.yaml
+      - --requestheader-client-ca-file=/etc/kubernetes/ssl/apiserver-ca.pem
+      - --requestheader-allowed-names=aggregator,APIDomain,K8sKubeletDomain
+      - --requestheader-extra-headers-prefix=X-Remote-Extra-
+      - --requestheader-group-headers=X-Remote-Group
+      - --requestheader-username-headers=X-Remote-User
+      - --proxy-client-cert-file=/etc/kubernetes/ssl/apiserver-crt.pem
+      - --proxy-client-key-file=/etc/kubernetes/ssl/apiserver-key.pem
+      - --oidc-issuer-url=issuerURL
+      - --oidc-client-id=clientID
+      - --oidc-username-claim=username-claim
+      - --oidc-groups-claim=groups-claim
+      resources:
+        requests:
+          cpu: 300m
+          memory: 300Mi
+      livenessProbe:
+        tcpSocket:
+          port: 9001
+        initialDelaySeconds: 15
+        timeoutSeconds: 15
+      ports:
+      - containerPort: 9001
+        hostPort: 9001
+        name: https
+      volumeMounts:
+      - mountPath: /var/log/apiserver/
+        name: apiserver-log
+      - mountPath: /etc/kubernetes/encryption/
+        name: k8s-encryption
+        readOnly: true
+      - mountPath: /etc/kubernetes/manifests
+        name: k8s-manifests
+        readOnly: true
+      - mountPath: /etc/kubernetes/policies
+        name: k8s-policies
+        readOnly: true
+      - mountPath: /etc/kubernetes/secrets/
+        name: k8s-secrets
+        readOnly: true
+      - mountPath: /etc/kubernetes/ssl/
+        name: ssl-certs-kubernetes
+        readOnly: true
+    volumes:
+    - hostPath:
+        path: /var/log/apiserver/
+      name: apiserver-log
+    - hostPath:
+        path: /etc/kubernetes/encryption/
+      name: k8s-encryption
+    - hostPath:
+        path: /etc/kubernetes/manifests
+      name: k8s-manifests
+    - hostPath:
+        path: /etc/kubernetes/policies
+      name: k8s-policies
+    - hostPath:
+        path: /etc/kubernetes/secrets
+      name: k8s-secrets
+    - hostPath:
+        path: /etc/kubernetes/ssl
+      name: ssl-certs-kubernetes
 manifests/k8s-controller-manager.yaml: |
   apiVersion: v1
   kind: Pod

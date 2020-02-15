@@ -61,6 +61,12 @@ spec:
     - --requestheader-username-headers=X-Remote-User
     - --proxy-client-cert-file=/etc/kubernetes/ssl/apiserver-crt.pem
     - --proxy-client-key-file=/etc/kubernetes/ssl/apiserver-key.pem
+    {{ if .Spec.Kubernetes.OIDC.Enabled -}}
+    - --oidc-issuer-url={{ .Spec.Kubernetes.OIDC.IssuerURL }}
+    - --oidc-client-id={{ .Spec.Kubernetes.OIDC.ClientID }}
+    - --oidc-username-claim={{ .Spec.Kubernetes.OIDC.UsernameClaim }}
+    - --oidc-groups-claim={{ .Spec.Kubernetes.OIDC.GroupsClaim }}
+    {{ end -}}
     resources:
       requests:
         cpu: 300m

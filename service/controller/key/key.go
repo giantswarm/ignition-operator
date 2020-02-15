@@ -51,17 +51,20 @@ func Render(values interface{}, filesdir string, b64 bool) (map[string]string, e
 		if err != nil {
 			return microerror.Mask(err)
 		}
-		var data bytes.Buffer
-		tmpl.Execute(&data, values)
+		var rendered bytes.Buffer
+		err = tmpl.Execute(&rendered, values)
+		if err != nil {
+			return microerror.Mask(err)
+		}
 
 		relativePath, err := filepath.Rel(filesdir, path)
 		if err != nil {
 			return microerror.Mask(err)
 		}
 		if b64 {
-			files[relativePath] = base64.StdEncoding.EncodeToString(data.Bytes())
+			files[relativePath] = base64.StdEncoding.EncodeToString(rendered.Bytes())
 		} else {
-			files[relativePath] = string(data.Bytes())
+			files[relativePath] = string(rendered.Bytes())
 		}
 
 		return nil
