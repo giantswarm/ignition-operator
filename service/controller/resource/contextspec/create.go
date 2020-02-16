@@ -114,6 +114,7 @@ func crToCCSpec(cr v1alpha1.Ignition) controllercontext.ContextSpec {
 					Domain:     cr.Spec.Kubernetes.API.Domain,
 					SecurePort: cr.Spec.Kubernetes.API.SecurePort,
 				},
+				CloudProvider: cr.Spec.Kubernetes.CloudProvider,
 				DNS: controllercontext.ContextSpecKubernetesDNS{
 					IP: cr.Spec.Kubernetes.DNS.IP,
 				},
