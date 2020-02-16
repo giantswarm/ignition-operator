@@ -1,8 +1,8 @@
 // +build dev
 
-package data
+package asset
 
 import "net/http"
 
 // Assets contains project assets.
-var Assets http.FileSystem = http.Dir("base")
+var Assets http.FileSystem = http.Dir("..")
