@@ -16,9 +16,7 @@ import (
 	"github.com/giantswarm/ignition-operator/service"
 )
 
-var (
-	f *flag.Flag = flag.New()
-)
+var f = flag.New()
 
 func main() {
 	err := mainE(context.Background())
@@ -41,7 +39,7 @@ func mainE(ctx context.Context) error {
 	}
 
 	// We define a server factory to create the custom server once all command
-	// line flags are parsed and all microservice configuration is storted out.
+	// line flags are parsed and all microservice configuration is sorted out.
 	serverFactory := func(v *viper.Viper) microserver.Server {
 		// Create a new custom service which implements business logic.
 		var newService *service.Service
