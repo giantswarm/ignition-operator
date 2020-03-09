@@ -62,10 +62,7 @@ func newIgnitionResourceSets(config IgnitionConfig) ([]*controller.ResourceSet, 
 
 	var resourceSet *controller.ResourceSet
 	{
-		c := ignitionResourceSetConfig{
-			K8sClient: config.K8sClient,
-			Logger:    config.Logger,
-		}
+		c := ignitionResourceSetConfig(config)
 
 		resourceSet, err = newIgnitionResourceSet(c)
 		if err != nil {

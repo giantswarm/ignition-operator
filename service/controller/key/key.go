@@ -33,7 +33,7 @@ func OperatorVersion(getter LabelsGetter) string {
 func Render(values interface{}, filesdir string, b64 bool) (map[string]string, error) {
 	files := make(map[string]string)
 
-	err := vfsutil.WalkFiles(asset.Assets, filesdir, func(path string, f os.FileInfo, rs io.ReadSeeker, err error) error {
+	walkFunction := func(path string, f os.FileInfo, rs io.ReadSeeker, err error) error {
 		if !f.Mode().IsRegular() {
 			return nil
 		}
@@ -48,7 +48,10 @@ func Render(values interface{}, filesdir string, b64 bool) (map[string]string, e
 			return microerror.Mask(err)
 		}
 		var data bytes.Buffer
-		tmpl.Execute(&data, values)
+		err = tmpl.Execute(&data, values)
+		if err != nil {
+			return microerror.Mask(err)
+		}
 
 		relativePath, err := filepath.Rel(filesdir, path)
 		if err != nil {
@@ -57,11 +60,13 @@ func Render(values interface{}, filesdir string, b64 bool) (map[string]string, e
 		if b64 {
 			files[relativePath] = base64.StdEncoding.EncodeToString(data.Bytes())
 		} else {
-			files[relativePath] = string(data.Bytes())
+			files[relativePath] = data.String()
 		}
 
 		return nil
-	})
+	}
+
+	err := vfsutil.WalkFiles(asset.Assets, filesdir, walkFunction)
 	if err != nil {
 		return nil, microerror.Mask(err)
 	}
