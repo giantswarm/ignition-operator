@@ -65,7 +65,13 @@ spec:
     - --oidc-issuer-url={{ .Spec.Kubernetes.OIDC.IssuerURL }}
     - --oidc-client-id={{ .Spec.Kubernetes.OIDC.ClientID }}
     - --oidc-username-claim={{ .Spec.Kubernetes.OIDC.UsernameClaim }}
+    {{ if .Spec.Kubernetes.OIDC.UsernamePrefix -}}
+    - --oidc-username-prefix={{ .Spec.Kubernetes.OIDC.UsernamePrefix }}
+    {{ end -}}
     - --oidc-groups-claim={{ .Spec.Kubernetes.OIDC.GroupsClaim }}
+    {{ if .Spec.Kubernetes.OIDC.GroupsPrefix -}}
+    - --oidc-groups-prefix={{ .Spec.Kubernetes.OIDC.GroupsPrefix }}
+    {{ end -}}
     {{ end -}}
     resources:
       requests:

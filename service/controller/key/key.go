@@ -14,8 +14,8 @@ import (
 	"github.com/giantswarm/microerror"
 	"github.com/shurcooL/httpfs/vfsutil"
 
+	"github.com/giantswarm/ignition-operator/pkg/asset"
 	"github.com/giantswarm/ignition-operator/pkg/label"
-	"github.com/giantswarm/ignition-operator/template/asset"
 )
 
 const (

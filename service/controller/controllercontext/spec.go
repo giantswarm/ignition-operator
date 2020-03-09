@@ -107,11 +107,13 @@ type ContextSpecKubernetes struct {
 }
 
 type ContextSpecOIDC struct {
-	Enabled       bool
-	ClientID      string
-	IssuerURL     string
-	UsernameClaim string
-	GroupsClaim   string
+	Enabled        bool
+	ClientID       string
+	IssuerURL      string
+	UsernameClaim  string
+	UsernamePrefix string
+	GroupsClaim    string
+	GroupsPrefix   string
 }
 
 type ContextSpecKubernetesAPI struct {
