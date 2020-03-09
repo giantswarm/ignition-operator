@@ -14,20 +14,16 @@ import (
 	"github.com/giantswarm/microerror"
 	"github.com/shurcooL/httpfs/vfsutil"
 
-	"github.com/giantswarm/ignition-operator/data"
 	"github.com/giantswarm/ignition-operator/pkg/label"
+	"github.com/giantswarm/ignition-operator/template/asset"
 )
 
 const (
 	FilePath = "/files"
 	UnitPath = "/units"
 
-	MasterTemplatePath = "master_template.yaml"
-	WorkerTemplatePath = "worker_template.yaml"
-)
-
-const (
-	DefaultNamespace = "giantswarm"
+	MasterTemplatePath = "/ignition/master_template.yaml"
+	WorkerTemplatePath = "/ignition/worker_template.yaml"
 )
 
 func OperatorVersion(getter LabelsGetter) string {
@@ -37,12 +33,12 @@ func OperatorVersion(getter LabelsGetter) string {
 func Render(values interface{}, filesdir string, b64 bool) (map[string]string, error) {
 	files := make(map[string]string)
 
-	err := vfsutil.WalkFiles(data.Assets, filesdir, func(path string, f os.FileInfo, rs io.ReadSeeker, err error) error {
+	err := vfsutil.WalkFiles(asset.Assets, filesdir, func(path string, f os.FileInfo, rs io.ReadSeeker, err error) error {
 		if !f.Mode().IsRegular() {
 			return nil
 		}
 
-		file, err := vfsutil.ReadFile(data.Assets, path)
+		file, err := vfsutil.ReadFile(asset.Assets, path)
 		if err != nil {
 			return microerror.Mask(err)
 		}
