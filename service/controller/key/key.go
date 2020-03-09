@@ -34,6 +34,10 @@ func Render(values interface{}, filesdir string, b64 bool) (map[string]string, e
 	files := make(map[string]string)
 
 	walkFunction := func(path string, f os.FileInfo, rs io.ReadSeeker, err error) error {
+		if err != nil {
+			return microerror.Mask(err)
+		}
+
 		if !f.Mode().IsRegular() {
 			return nil
 		}
