@@ -5,4 +5,4 @@ package asset
 import "net/http"
 
 // Assets contains project assets.
-var Assets http.FileSystem = http.Dir("..")
+var Assets http.FileSystem = http.Dir("../../template")

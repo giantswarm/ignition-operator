@@ -96,12 +96,24 @@ type ContextSpecIngress struct {
 }
 
 type ContextSpecKubernetes struct {
-	API     ContextSpecKubernetesAPI
-	DNS     ContextSpecKubernetesDNS
-	Domain  string
-	Kubelet ContextSpecKubernetesKubelet
-	Image   string
-	IPRange string
+	API           ContextSpecKubernetesAPI
+	CloudProvider string
+	DNS           ContextSpecKubernetesDNS
+	Domain        string
+	Kubelet       ContextSpecKubernetesKubelet
+	Image         string
+	IPRange       string
+	OIDC          ContextSpecOIDC
+}
+
+type ContextSpecOIDC struct {
+	Enabled        bool
+	ClientID       string
+	IssuerURL      string
+	UsernameClaim  string
+	UsernamePrefix string
+	GroupsClaim    string
+	GroupsPrefix   string
 }
 
 type ContextSpecKubernetesAPI struct {
