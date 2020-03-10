@@ -64,7 +64,7 @@ func Render(values interface{}, filesdir string, b64 bool) (map[string]string, e
 		if b64 {
 			files[relativePath] = base64.StdEncoding.EncodeToString(rendered.Bytes())
 		} else {
-			files[relativePath] = string(rendered.Bytes())
+			files[relativePath] = rendered.String()
 		}
 
 		return nil
