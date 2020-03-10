@@ -8,7 +8,7 @@ import (
 
 	"github.com/shurcooL/vfsgen"
 
-	"github.com/giantswarm/ignition-operator/template/asset"
+	"github.com/giantswarm/ignition-operator/pkg/asset"
 )
 
 func main() {
