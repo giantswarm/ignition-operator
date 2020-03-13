@@ -9,7 +9,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32 // indirect
-	github.com/giantswarm/apiextensions v0.1.0
+	github.com/giantswarm/apiextensions v0.1.1
 	github.com/giantswarm/backoff v0.0.0-20190913091243-4dd491125192 // indirect
 	github.com/giantswarm/exporterkit v0.0.0-20190619131829-9749deade60f // indirect
 	github.com/giantswarm/k8sclient v0.0.0-20200120104955-1542917096d6
