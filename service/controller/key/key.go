@@ -33,7 +33,11 @@ func OperatorVersion(getter LabelsGetter) string {
 func Render(values interface{}, filesdir string, b64 bool) (map[string]string, error) {
 	files := make(map[string]string)
 
-	err := vfsutil.WalkFiles(asset.Assets, filesdir, func(path string, f os.FileInfo, rs io.ReadSeeker, err error) error {
+	walkFunction := func(path string, f os.FileInfo, rs io.ReadSeeker, err error) error {
+		if err != nil {
+			return microerror.Mask(err)
+		}
+
 		if !f.Mode().IsRegular() {
 			return nil
 		}
@@ -60,11 +64,13 @@ func Render(values interface{}, filesdir string, b64 bool) (map[string]string, e
 		if b64 {
 			files[relativePath] = base64.StdEncoding.EncodeToString(rendered.Bytes())
 		} else {
-			files[relativePath] = string(rendered.Bytes())
+			files[relativePath] = rendered.String()
 		}
 
 		return nil
-	})
+	}
+
+	err := vfsutil.WalkFiles(asset.Assets, filesdir, walkFunction)
 	if err != nil {
 		return nil, microerror.Mask(err)
 	}
