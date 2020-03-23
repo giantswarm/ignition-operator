@@ -6,7 +6,8 @@ orbs:
 workflows:
   build:
     jobs:
-      - architect/gitleaks
+      - architect/gitleaks:
+          config: .gitleaks.toml
       - architect/go-build:
           name: go-build-ignition-operator
           binary: ignition-operator
