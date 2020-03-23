@@ -6,6 +6,7 @@ orbs:
 workflows:
   build:
     jobs:
+      - architect/gitleaks
       - architect/go-build:
           name: go-build-ignition-operator
           binary: ignition-operator
