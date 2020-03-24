@@ -3,4 +3,4 @@ name: ignition-operator
 description: Templates ignition which is used for giantswarm clusters.
 home: https://github.com/giantswarm/ignition-operator
 version: [[ .Version ]]
-appVersion: [[ .Version ]]
+appVersion: [[ .AppVersion ]]
