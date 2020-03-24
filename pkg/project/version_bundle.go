@@ -15,6 +15,6 @@ func NewVersionBundle() versionbundle.Bundle {
 		},
 		Components: []versionbundle.Component{},
 		Name:       "ignition-operator",
-		Version:    BundleVersion(),
+		Version:    Version(),
 	}
 }

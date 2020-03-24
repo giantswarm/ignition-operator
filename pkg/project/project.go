@@ -1,17 +1,12 @@
 package project
 
 var (
-	bundleVersion = "0.0.1"
-	description   = "The ignition-operator does something."
-	gitSHA        = "n/a"
-	name          = "ignition-operator"
-	source        = "https://github.com/giantswarm/ignition-operator"
-	version       = "n/a"
+	description = "The ignition-operator does something."
+	gitSHA      = "n/a"
+	name        = "ignition-operator"
+	source      = "https://github.com/giantswarm/ignition-operator"
+	version     = "0.0.1"
 )
-
-func BundleVersion() string {
-	return bundleVersion
-}
 
 func Description() string {
 	return description
