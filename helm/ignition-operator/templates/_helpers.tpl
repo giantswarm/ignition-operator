@@ -17,8 +17,8 @@ Create chart name and version as used by the chart label.
 Common labels
 */}}
 {{- define "ignition-operator.labels" -}}
-app: {{ include "ignition-operator.name" . | quote }}
 {{ include "ignition-operator.selectorLabels" . }}
+app: {{ include "ignition-operator.name" . | quote }}
 app.giantswarm.io/branch: {{ .Values.project.branch | quote }}
 app.giantswarm.io/commit: {{ .Values.project.commit | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
