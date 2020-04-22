@@ -9,8 +9,11 @@ func NewVersionBundle() versionbundle.Bundle {
 		Changelogs: []versionbundle.Changelog{
 			{
 				Component:   "ignition-operator",
-				Description: "TODO",
+				Description: "Use Release.Revision in annotation for Helm 3 compatibility.",
 				Kind:        versionbundle.KindChanged,
+				URLs: []string{
+					"https://github.com/giantswarm/ignition-operator/pull/68",
+				},
 			},
 		},
 		Components: []versionbundle.Component{},
