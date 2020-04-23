@@ -5,7 +5,7 @@ var (
 	gitSHA      = "n/a"
 	name        = "ignition-operator"
 	source      = "https://github.com/giantswarm/ignition-operator"
-	version     = "0.0.2-dev"
+	version     = "0.0.2"
 )
 
 func Description() string {
