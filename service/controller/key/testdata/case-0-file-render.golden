@@ -1834,9 +1834,9 @@ manifests/k8s-api-server.yaml: |
       - --oidc-issuer-url=issuerURL
       - --oidc-client-id=clientID
       - --oidc-username-claim=username-claim
-      - --oidc-username-prefix=username-prefix
+      - '--oidc-username-prefix=username-prefix'
       - --oidc-groups-claim=groups-claim
-      - --oidc-groups-prefix=groups-prefix
+      - '--oidc-groups-prefix=groups-prefix'
       resources:
         requests:
           cpu: 300m
