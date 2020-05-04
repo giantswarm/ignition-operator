@@ -12,4 +12,4 @@ to be passed into nodes using [cloud-init](https://cloudinit.readthedocs.io/en/l
 
 ## Code generation
 
-After modifying template files in `template/`, you must regenerate the `vfsstatic.go` file using `go generate template/asset/generate.go`.
+After modifying template files in `template/`, you must regenerate the `vfsstatic.go` file using `go generate pkg/asset/generate.go`.

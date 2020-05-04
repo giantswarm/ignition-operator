@@ -1237,7 +1237,6 @@ k8s-resource/kube-proxy-ds.yaml: |
     name: kube-proxy
     namespace: kube-system
     labels:
-      component: kube-proxy
       k8s-app: kube-proxy
       kubernetes.io/cluster-service: "true"
   spec:
@@ -1251,7 +1250,6 @@ k8s-resource/kube-proxy-ds.yaml: |
     template:
       metadata:
         labels:
-          component: kube-proxy
           k8s-app: kube-proxy
           kubernetes.io/cluster-service: "true"
         annotations:
