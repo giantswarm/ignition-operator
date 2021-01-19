@@ -1,19 +1,13 @@
 package controller
 
 import (
-	"context"
-
-	"github.com/giantswarm/k8sclient"
+	"github.com/giantswarm/k8sclient/v5/pkg/k8sclient"
 	"github.com/giantswarm/microerror"
 	"github.com/giantswarm/micrologger"
-	"github.com/giantswarm/operatorkit/controller"
-	"github.com/giantswarm/operatorkit/resource"
-	"github.com/giantswarm/operatorkit/resource/wrapper/metricsresource"
-	"github.com/giantswarm/operatorkit/resource/wrapper/retryresource"
+	"github.com/giantswarm/operatorkit/v4/pkg/resource"
+	"github.com/giantswarm/operatorkit/v4/pkg/resource/wrapper/metricsresource"
+	"github.com/giantswarm/operatorkit/v4/pkg/resource/wrapper/retryresource"
 
-	"github.com/giantswarm/ignition-operator/pkg/project"
-	"github.com/giantswarm/ignition-operator/service/controller/controllercontext"
-	"github.com/giantswarm/ignition-operator/service/controller/key"
 	"github.com/giantswarm/ignition-operator/service/controller/resource/contextspec"
 	"github.com/giantswarm/ignition-operator/service/controller/resource/templatefiles"
 	"github.com/giantswarm/ignition-operator/service/controller/resource/templateignition"
@@ -25,7 +19,7 @@ type ignitionResourceSetConfig struct {
 	Logger    micrologger.Logger
 }
 
-func newIgnitionResourceSet(config ignitionResourceSetConfig) (*controller.ResourceSet, error) {
+func newIgnitionResource(config ignitionResourceSetConfig) ([]resource.Interface, error) {
 	var err error
 
 	var contextspecResource resource.Interface
@@ -106,37 +100,5 @@ func newIgnitionResourceSet(config ignitionResourceSetConfig) (*controller.Resou
 		}
 	}
 
-	handlesFunc := func(obj interface{}) bool {
-		cr, err := key.ToIgnition(obj)
-		if err != nil {
-			return false
-		}
-
-		if key.OperatorVersion(&cr) == project.Version() {
-			return true
-		}
-
-		return false
-	}
-
-	initCtxFunc := func(ctx context.Context, obj interface{}) (context.Context, error) {
-		return controllercontext.NewContext(ctx, controllercontext.Context{}), nil
-	}
-
-	var resourceSet *controller.ResourceSet
-	{
-		c := controller.ResourceSetConfig{
-			Handles:   handlesFunc,
-			InitCtx:   initCtxFunc,
-			Logger:    config.Logger,
-			Resources: resources,
-		}
-
-		resourceSet, err = controller.NewResourceSet(c)
-		if err != nil {
-			return nil, microerror.Mask(err)
-		}
-	}
-
-	return resourceSet, nil
+	return resources, nil
 }
