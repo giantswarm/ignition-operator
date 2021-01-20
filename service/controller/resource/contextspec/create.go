@@ -3,7 +3,7 @@ package contextspec
 import (
 	"context"
 
-	"github.com/giantswarm/apiextensions/pkg/apis/core/v1alpha1"
+	"github.com/giantswarm/apiextensions/v3/pkg/apis/core/v1alpha1"
 	"github.com/giantswarm/microerror"
 
 	"github.com/giantswarm/ignition-operator/service/controller/controllercontext"

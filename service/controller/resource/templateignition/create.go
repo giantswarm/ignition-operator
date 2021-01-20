@@ -3,7 +3,7 @@ package templateignition
 import (
 	"context"
 
-	"github.com/giantswarm/apiextensions/pkg/apis/core/v1alpha1"
+	"github.com/giantswarm/apiextensions/v3/pkg/apis/core/v1alpha1"
 	"github.com/giantswarm/microerror"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -53,9 +53,9 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 		},
 	}
 
-	actualSecret, err := r.k8sClient.K8sClient().CoreV1().Secrets(cr.GetNamespace()).Update(s)
+	actualSecret, err := r.k8sClient.K8sClient().CoreV1().Secrets(cr.GetNamespace()).Update(ctx, s, metav1.UpdateOptions{})
 	if apierrors.IsNotFound(err) {
-		actualSecret, err = r.k8sClient.K8sClient().CoreV1().Secrets(cr.GetNamespace()).Create(s)
+		actualSecret, err = r.k8sClient.K8sClient().CoreV1().Secrets(cr.GetNamespace()).Create(ctx, s, metav1.CreateOptions{})
 		if err != nil {
 			return microerror.Mask(err)
 		}
@@ -69,7 +69,7 @@ func (r *Resource) EnsureCreated(ctx context.Context, obj interface{}) error {
 		ResourceVersion: actualSecret.ResourceVersion,
 	}
 
-	_, err = r.k8sClient.G8sClient().CoreV1alpha1().Ignitions(cr.Namespace).UpdateStatus(&cr)
+	_, err = r.k8sClient.G8sClient().CoreV1alpha1().Ignitions(cr.Namespace).UpdateStatus(ctx, &cr, metav1.UpdateOptions{})
 	if err != nil {
 		return microerror.Mask(err)
 	}

@@ -10,7 +10,7 @@ import (
 	"text/template"
 
 	"github.com/Masterminds/sprig"
-	"github.com/giantswarm/apiextensions/pkg/apis/core/v1alpha1"
+	"github.com/giantswarm/apiextensions/v3/pkg/apis/core/v1alpha1"
 	"github.com/giantswarm/microerror"
 	"github.com/shurcooL/httpfs/vfsutil"
 
