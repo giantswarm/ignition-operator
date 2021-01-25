@@ -32,6 +32,8 @@ replace github.com/gorilla/websocket v1.4.0 => github.com/gorilla/websocket v1.4
 
 replace github.com/coreos/etcd v3.3.17+incompatible => github.com/coreos/etcd v3.3.25+incompatible
 
+replace github.com/coreos/etcd v3.3.13+incompatible => github.com/coreos/etcd v3.3.25+incompatible
+
 replace github.com/coreos/etcd v3.3.10+incompatible => github.com/coreos/etcd v3.3.25+incompatible
 
 // keep in sync with giantswarm/apiextensions
