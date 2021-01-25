@@ -19,7 +19,7 @@ require (
 	github.com/mitchellh/copystructure v1.0.0 // indirect
 	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749
 	github.com/shurcooL/vfsgen v0.0.0-20181202132449-6a9ea43bcacd
-	github.com/spf13/viper v1.6.2
+	github.com/spf13/viper v1.7.1
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.18.15
 	k8s.io/apimachinery v0.18.15
