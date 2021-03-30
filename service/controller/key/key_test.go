@@ -108,7 +108,7 @@ func Test_Controller_Key_Render(t *testing.T) {
 			p := filepath.Join("testdata", unittest.NormalizeFileName(tc.name)+".golden")
 
 			if *update {
-				err := ioutil.WriteFile(p, yamlFiles, 0644)
+				err := ioutil.WriteFile(p, yamlFiles, 0644) // #nosec
 				if err != nil {
 					t.Fatal(err)
 				}
