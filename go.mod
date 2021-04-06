@@ -12,7 +12,7 @@ require (
 	github.com/giantswarm/microerror v0.3.0
 	github.com/giantswarm/microkit v0.2.2
 	github.com/giantswarm/micrologger v0.5.0
-	github.com/giantswarm/operatorkit/v4 v4.2.0
+	github.com/giantswarm/operatorkit/v4 v4.3.0
 	github.com/giantswarm/versionbundle v0.2.0
 	github.com/google/go-cmp v0.5.4
 	github.com/huandu/xstrings v1.3.2 // indirect
